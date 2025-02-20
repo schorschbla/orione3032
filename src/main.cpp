@@ -838,7 +838,7 @@ void loop()
       temperatureArrival = false;
 
       pumpSetLevel(0);
-      valveDeadline = windowStart + (windowStart - infuseStart < 10000 ? 10000 : 2000);
+      valveDeadline = windowStart + (windowStart - infuseStart < 10000 ? 20000 : 2000);
 
       currentSplashPos = 0;
     }
