@@ -361,11 +361,12 @@ struct Qm3032Config
   float pumpPower;
   float preinfusionVolume;
   uint16_t preinfusionDuration;
+  float preinfusionPressure;
   float steamTemperature;
   uint8_t steamWaterSupplyCycles;
 };
 
-struct Qm3032Config defaultConfig = { 1, 87.0, 20.0, 0.8, 5.0, 5000, 125.0, 2 };
+struct Qm3032Config defaultConfig = { 1, 92.0, 20.0, 0.73, 8.0, 10000, 4.0, 125.0, 2 };
 
 bool readConfig(struct Qm3032Config &config)
 {
@@ -520,6 +521,8 @@ unsigned int infusionHeatingCyclesIs;
 
 float infusionConstantHeatingPower;
 
+bool preinfusionPressureReached;
+
 void updateUi()
 {
   float temperatureAvgDegree = temperateAvg.get();
@@ -615,8 +618,8 @@ void processBt()
       
       if (!strcmp("get config", buf))
       {
-        bt.printf("temp %f waterTemp %f pumpPower %f steamTemp %f steamWaterSupplyCycles %d preinfusionVolume %f preinfusionDuration %d\n", 
-          config.temperature, config.waterTemperature, config.pumpPower, config.steamTemperature, config.steamWaterSupplyCycles, config.preinfusionVolume, config.preinfusionDuration);
+        bt.printf("temp %f waterTemp %f pumpPower %f steamTemp %f steamWaterSupplyCycles %d preinfusionVolume %f preinfusionPressure %f preinfusionDuration %d\n", 
+          config.temperature, config.waterTemperature, config.pumpPower, config.steamTemperature, config.steamWaterSupplyCycles, config.preinfusionVolume, config.preinfusionPressure, config.preinfusionDuration);
       }
       else
       {
@@ -695,6 +698,18 @@ void processBt()
             bt.printf("error range %f %f\n", 0.0, 20.0);
           }
         }
+        else if (sscanf(buf, "set preinfusionPressure %f", &value) > 0)
+        {
+          if (value >= 1.0 && value <= 4.0)
+          {
+            config.preinfusionPressure = value;
+            writeConfig(config);
+          }
+          else
+          {
+            bt.printf("error range %f %f\n", 1.0, 4.0);
+          }
+        }        
       }
     }
   }
@@ -811,6 +826,8 @@ void loop()
       infusionHeatingCyclesIs = 0;
 
       infusionConstantHeatingPower = abs(temperatureIs - config.temperature) < TEMPERATURE_ARRIVAL_THRESHOLD ? pidAvg.get() : 0.0;
+
+      preinfusionPressureReached = false;
    }
     else
     {
@@ -821,7 +838,7 @@ void loop()
       temperatureArrival = false;
 
       pumpSetLevel(0);
-      valveDeadline = windowStart + 2000;
+      valveDeadline = windowStart + (windowStart - infuseStart < 10000 ? 10000 : 2000);
 
       currentSplashPos = 0;
     }
@@ -853,15 +870,7 @@ void loop()
       unsigned int infusionTime = windowStart - infuseStart;
       if (infusionTime < config.preinfusionDuration)
       {
-        pumpValue = PUMP_MIN_POWER;
-        if (config.preinfusionVolume > PREINFUSION_LAG_ML)
-        {
-          float infusionVolume = (flowCounter - flowCounterInfusionStart) * FLOW_ML_PER_TICK;
-          if (infusionVolume > config.preinfusionVolume - PREINFUSION_LAG_ML)
-          {
-            pumpValue = 0.0;
-          }
-        }
+        pumpValue = preinfusionPressureReached ? 0.0 : PUMP_MIN_POWER;
       }
       else
       {
@@ -893,6 +902,7 @@ void loop()
   if (valveDeadline != 0 && windowStart > valveDeadline) 
   {
     digitalWrite(PIN_VALVE_AC, LOW);
+    valveDeadline = 0;
   }
 
   if (cycle % MAX31856_READ_INTERVAL_CYCLES == 0)
@@ -955,6 +965,11 @@ void loop()
     {
         float pressure = (short)(pressureSample / 256) / float(SHRT_MAX) * XDB401_MAX_BAR;
         pressureAvg.push(pressure);
+
+        if (infusing && !preinfusionPressureReached && pressureAvg.get() > config.preinfusionPressure)
+        {
+          preinfusionPressureReached = true;
+        }
     }
   }
 
