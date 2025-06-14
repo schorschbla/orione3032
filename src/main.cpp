@@ -72,13 +72,14 @@ static float pressureHeatWeights[] = { 1.0f, 5.0f, 2.0f, 2.0f, 1.0f };
 static float temperatureHeatWeights[] = { 5.0f, 85.0f, 10.0f, 2.0f, 3.0f };
 
 int ReadXdb401PressureValue(int *result);
+int ReadMlx60914PTemperatureValue(uint8_t reg, float *result);
 
 Display display(GC9A01_SPI_WRITE_FREQUENCY, PIN_GC9A01_SCLK, PIN_GC9A01_MOSI, PIN_GC9A01_DC, PIN_GC9A01_CS, PIN_GC9A01_RST);
 
 SPIClass hspi(HSPI);
 Adafruit_MAX31865 thermo(PIN_MAX31865_SELECT, &hspi);
 
-DataTomeMvAvg<float, double> temperateAvg(20), pressureAvg(25), flowAvg(10), pidAvg(10);
+DataTomeMvAvg<float, double> temperateAvg(20), portaTemperateAvg(20), pressureAvg(25), flowAvg(10), pidAvg(10);
 
 double temperatureSet, temperatureIs, pidOut;
 
@@ -130,6 +131,9 @@ lv_obj_t *standbyScreen;
 lv_obj_t *standbyTemperatureArc;
 lv_obj_t *standbyTemperatureLabel;
 
+lv_obj_t *portaTemperatureArc;
+lv_obj_t *portaTemperatureLabel;
+
 lv_obj_t *infuseScreen;
 lv_obj_t *infusePressureArc;
 lv_obj_t *infusePressureLabel;
@@ -152,18 +156,33 @@ void initStandbyUi()
   standbyScreen = lv_obj_create(NULL);
   standbyTemperatureArc = lv_arc_create(standbyScreen);
   lv_obj_set_size(standbyTemperatureArc, 230, 230);
-  lv_obj_set_style_arc_width(standbyTemperatureArc, 16, LV_PART_MAIN);
-  lv_obj_set_style_arc_width(standbyTemperatureArc, 16, LV_PART_INDICATOR);
+  lv_obj_set_style_arc_width(standbyTemperatureArc, 12, LV_PART_MAIN);
+  lv_obj_set_style_arc_width(standbyTemperatureArc, 12, LV_PART_INDICATOR);
   lv_arc_set_rotation(standbyTemperatureArc, 145);
   lv_arc_set_bg_angles(standbyTemperatureArc, 0, 250);
   lv_obj_remove_style(standbyTemperatureArc, NULL, LV_PART_KNOB);
   lv_obj_center(standbyTemperatureArc);
 
   standbyTemperatureLabel = lv_label_create(standbyScreen);
-  lv_obj_set_style_text_font(standbyTemperatureLabel, &lv_font_montserrat_48, 0);
+  lv_obj_set_style_text_font(standbyTemperatureLabel, &lv_font_montserrat_40, 0);
   lv_obj_set_width(standbyTemperatureLabel, 150);
   lv_obj_set_style_text_align(standbyTemperatureLabel, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(standbyTemperatureLabel, LV_ALIGN_CENTER, 0, -40);
+  lv_obj_align(standbyTemperatureLabel, LV_ALIGN_CENTER, 0, -28);
+
+  portaTemperatureArc = lv_arc_create(standbyScreen);
+  lv_obj_set_size(portaTemperatureArc, 200, 200);
+  lv_obj_set_style_arc_width(portaTemperatureArc, 8, LV_PART_MAIN);
+  lv_obj_set_style_arc_width(portaTemperatureArc, 8, LV_PART_INDICATOR);
+  lv_arc_set_rotation(portaTemperatureArc, 145);
+  lv_arc_set_bg_angles(portaTemperatureArc, 0, 250);
+  lv_obj_remove_style(portaTemperatureArc, NULL, LV_PART_KNOB);
+  lv_obj_center(portaTemperatureArc);
+
+  portaTemperatureLabel = lv_label_create(standbyScreen);
+  lv_obj_set_style_text_font(portaTemperatureLabel, &lv_font_montserrat_32, 0);
+  lv_obj_set_width(portaTemperatureLabel, 150);
+  lv_obj_set_style_text_align(portaTemperatureLabel, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_align(portaTemperatureLabel, LV_ALIGN_CENTER, 0, -62);
 }
 
 void initInfuseUi()
@@ -434,6 +453,15 @@ pcnt_config_t flowMeterPcntConfig = {
     .channel = PCNT_CHANNEL_0
 };
 
+void readyMelody()
+{
+  tone(PIN_BUZZER, 1056, 200);
+  tone(PIN_BUZZER, 0, 20);
+  tone(PIN_BUZZER, 792, 200);
+  tone(PIN_BUZZER, 0, 20);
+  tone(PIN_BUZZER, 1056, 200);
+}
+
 void setup()
 {
   Serial.begin(9600);
@@ -464,7 +492,7 @@ void setup()
     return;
   }
 
-	pinMode(15, INPUT_PULLDOWN);
+	pinMode(PIN_FLOW_METER, INPUT_PULLDOWN);
 	pcnt_unit_config(&flowMeterPcntConfig);
 
   Wire.begin();
@@ -503,6 +531,8 @@ void setup()
 
   pcnt_counter_clear(FLOW_METER_PCNT_UNIT);
   pcnt_counter_resume(FLOW_METER_PCNT_UNIT);
+
+  readyMelody();
 }
 
 unsigned long cycle = 0;
@@ -580,25 +610,30 @@ void updateUi()
   }
   else
   {
+    float portaTemperatureAvgDegree = portaTemperateAvg.get();
+
     if (lv_scr_act() != standbyScreen)
     {
       lv_scr_load(standbyScreen);
     }
 
-    lv_arc_set_angles(standbyTemperatureArc, 0, temperatureAvgDegree / TEMPERATURE_SAFETY_GUARD * 250);
-
-    int temperatureAvgDegreeInt = (int) temperatureAvgDegree;
-    if (temperatureAvgDegreeInt >= 100)
-    {
-      lv_label_set_text_fmt(standbyTemperatureLabel, "%d°", temperatureAvgDegreeInt);
-    }
-    else
-    {
-      lv_label_set_text_fmt(standbyTemperatureLabel, "%.1f°", temperatureAvgDegree);
-    }
+    lv_label_set_text_fmt(standbyTemperatureLabel, "%.1f°", temperatureAvgDegree);
 
     lv_arc_set_angles(standbyTemperatureArc, 0, temperatureAvgDegree / TEMPERATURE_SAFETY_GUARD * 250);
     lv_obj_set_style_arc_color(standbyTemperatureArc, lv_color_hex(tempGradient.getRgb(temperatureAvgDegree)), LV_PART_INDICATOR | LV_STATE_DEFAULT );
+
+    int portaTemperatureAvgDegreeInt = (int) portaTemperatureAvgDegree;
+    if (portaTemperatureAvgDegreeInt >= 100)
+    {
+      lv_label_set_text_fmt(portaTemperatureLabel, "%d°", portaTemperatureAvgDegreeInt);
+    }
+    else
+    {
+      lv_label_set_text_fmt(portaTemperatureLabel, "%.1f°", portaTemperatureAvgDegree);
+    }
+
+    lv_arc_set_angles(portaTemperatureArc, 0, portaTemperatureAvgDegree / 80 * 250);
+    lv_obj_set_style_arc_color(portaTemperatureArc, lv_color_hex(tempGradient.getRgb(portaTemperatureAvgDegree)), LV_PART_INDICATOR | LV_STATE_DEFAULT );
   }
 }
 
@@ -828,6 +863,8 @@ void loop()
       infusionConstantHeatingPower = abs(temperatureIs - config.temperature) < TEMPERATURE_ARRIVAL_THRESHOLD ? pidAvg.get() : 0.0;
 
       preinfusionPressureReached = false;
+
+      readyMelody();
    }
     else
     {
@@ -922,7 +959,17 @@ void loop()
         lastTemperatureArrivalChange = windowStart;
         pidOut = temperatureIs = 0;
         setPidTunings(PID_P, arrival ? PID_I : 0, arrival ? PID_D : 0);
-      } 
+      }
+    }
+
+    float portaTemperature;
+    if (ReadMlx60914PTemperatureValue(0x07, &portaTemperature) == 0)
+    {
+      portaTemperateAvg.push(portaTemperature);
+    }
+    else
+    {
+      // TODO
     }
   }
 
