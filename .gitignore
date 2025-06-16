@@ -4,3 +4,9 @@
 .vscode/launch.json
 .vscode/ipch
 .vscode/extensions.json
+node_modules
+*.3mf
+*.step
+*.amf
+*.bak
+
