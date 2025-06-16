@@ -1029,13 +1029,20 @@ void loop()
 
     if (infusing)
     {
-        float infusionVolume = (currentFlowCounter - flowCounterInfusionStart) * FLOW_ML_PER_TICK;
-        float heatingEnergy = infusionVolume * (config.temperature - config.waterTemperature) * HEATING_ENERGY_PER_ML_AND_KELVIN_WATTSECONDS;
-        unsigned int heatingCyclesSet = heatingEnergy / HEATING_OUTPUT_WATTS * 1000 / HEATING_CYCLE_LENGTH;
-        if (heatingCyclesSet > infusionHeatingCyclesIs) 
+        if (temperateAvg.get() < 100) 
         {
-          setHeatingCylces(heatingCyclesSet - infusionHeatingCyclesIs, false);
-          infusionHeatingCyclesIs = heatingCyclesSet;
+          float infusionVolume = (currentFlowCounter - flowCounterInfusionStart) * FLOW_ML_PER_TICK;
+          float heatingEnergy = infusionVolume * (config.temperature - config.waterTemperature) * HEATING_ENERGY_PER_ML_AND_KELVIN_WATTSECONDS;
+          unsigned int heatingCyclesSet = heatingEnergy / HEATING_OUTPUT_WATTS * 1000 / HEATING_CYCLE_LENGTH;
+          if (heatingCyclesSet > infusionHeatingCyclesIs) 
+          {
+            setHeatingCylces(heatingCyclesSet - infusionHeatingCyclesIs, false);
+            infusionHeatingCyclesIs = heatingCyclesSet;
+          }
+        }
+        else 
+        {
+          flowCounterInfusionStart = currentFlowCounter;
         }
     }
   }
