@@ -70,6 +70,7 @@
 unsigned int const heatGradient[] = { 0x7f7f7f, 0x0000ff, 0x00a591, 0x00ff00, 0xffff00, 0xff0000 };
 static float pressureHeatWeights[] = { 1.0f, 5.0f, 2.0f, 2.0f, 1.0f };
 static float temperatureHeatWeights[] = { 5.0f, 85.0f, 10.0f, 2.0f, 3.0f };
+static float brewingUnitTemperatureHeatWeights[] = { 5.0f, 40.0f, 5.0f, 10.0f, 10.0f };
 
 int ReadXdb401PressureValue(int *result);
 int ReadMlx60914PTemperatureValue(uint8_t reg, float *result);
@@ -79,13 +80,14 @@ Display display(GC9A01_SPI_WRITE_FREQUENCY, PIN_GC9A01_SCLK, PIN_GC9A01_MOSI, PI
 SPIClass hspi(HSPI);
 Adafruit_MAX31865 thermo(PIN_MAX31865_SELECT, &hspi);
 
-DataTomeMvAvg<float, double> temperateAvg(20), portaTemperateAvg(20), pressureAvg(25), flowAvg(10), pidAvg(10);
+DataTomeMvAvg<float, double> temperateAvg(20), brewingUnitTemperateAvg(20), pressureAvg(25), flowAvg(10), pidAvg(10);
 
-double temperatureSet, temperatureIs, pidOut;
+double temperatureSet, temperatureIs, pidOut, brewingUnitTemperature;
 
 PID temperaturePid(&temperatureIs, &pidOut, &temperatureSet, PID_P, 0, 0, DIRECT);
 
 Gradient tempGradient(heatGradient, temperatureHeatWeights, 6);
+Gradient brewingUnitTempGradient(heatGradient, brewingUnitTemperatureHeatWeights, 6);
 Gradient pressureGradient(heatGradient, pressureHeatWeights, 6);
 
 hw_timer_t *heatingTimer = NULL;
@@ -113,6 +115,12 @@ void setTemperature(float t)
   temperatureHeatWeights[1] = temperatureSet - 15;
 }
 
+void setBrewingUnitTemperature(float t)
+{
+  brewingUnitTemperature = t;
+  brewingUnitTemperatureHeatWeights[1] = brewingUnitTemperature - 10;
+}
+
 unsigned int flowCounter = 0;
 
 unsigned int lastFlowCounter = 0;
@@ -131,8 +139,8 @@ lv_obj_t *standbyScreen;
 lv_obj_t *standbyTemperatureArc;
 lv_obj_t *standbyTemperatureLabel;
 
-lv_obj_t *portaTemperatureArc;
-lv_obj_t *portaTemperatureLabel;
+lv_obj_t *brewingUnitTemperatureArc;
+lv_obj_t *brewingUnitTemperatureLabel;
 
 lv_obj_t *infuseScreen;
 lv_obj_t *infusePressureArc;
@@ -169,20 +177,20 @@ void initStandbyUi()
   lv_obj_set_style_text_align(standbyTemperatureLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(standbyTemperatureLabel, LV_ALIGN_CENTER, 0, -28);
 
-  portaTemperatureArc = lv_arc_create(standbyScreen);
-  lv_obj_set_size(portaTemperatureArc, 200, 200);
-  lv_obj_set_style_arc_width(portaTemperatureArc, 8, LV_PART_MAIN);
-  lv_obj_set_style_arc_width(portaTemperatureArc, 8, LV_PART_INDICATOR);
-  lv_arc_set_rotation(portaTemperatureArc, 145);
-  lv_arc_set_bg_angles(portaTemperatureArc, 0, 250);
-  lv_obj_remove_style(portaTemperatureArc, NULL, LV_PART_KNOB);
-  lv_obj_center(portaTemperatureArc);
+  brewingUnitTemperatureArc = lv_arc_create(standbyScreen);
+  lv_obj_set_size(brewingUnitTemperatureArc, 200, 200);
+  lv_obj_set_style_arc_width(brewingUnitTemperatureArc, 8, LV_PART_MAIN);
+  lv_obj_set_style_arc_width(brewingUnitTemperatureArc, 8, LV_PART_INDICATOR);
+  lv_arc_set_rotation(brewingUnitTemperatureArc, 145);
+  lv_arc_set_bg_angles(brewingUnitTemperatureArc, 0, 250);
+  lv_obj_remove_style(brewingUnitTemperatureArc, NULL, LV_PART_KNOB);
+  lv_obj_center(brewingUnitTemperatureArc);
 
-  portaTemperatureLabel = lv_label_create(standbyScreen);
-  lv_obj_set_style_text_font(portaTemperatureLabel, &lv_font_montserrat_32, 0);
-  lv_obj_set_width(portaTemperatureLabel, 150);
-  lv_obj_set_style_text_align(portaTemperatureLabel, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(portaTemperatureLabel, LV_ALIGN_CENTER, 0, -62);
+  brewingUnitTemperatureLabel = lv_label_create(standbyScreen);
+  lv_obj_set_style_text_font(brewingUnitTemperatureLabel, &lv_font_montserrat_32, 0);
+  lv_obj_set_width(brewingUnitTemperatureLabel, 150);
+  lv_obj_set_style_text_align(brewingUnitTemperatureLabel, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_align(brewingUnitTemperatureLabel, LV_ALIGN_CENTER, 0, -62);
 }
 
 void initInfuseUi()
@@ -383,16 +391,17 @@ struct Qm3032Config
   float preinfusionPressure;
   float steamTemperature;
   uint8_t steamWaterSupplyCycles;
+  float brewingUnitTemperature;
 };
 
-struct Qm3032Config defaultConfig = { 1, 92.0, 20.0, 0.73, 8.0, 10000, 4.0, 125.0, 2 };
+struct Qm3032Config defaultConfig = { 1, 92.0, 20.0, 0.73, 8.0, 10000, 4.0, 125.0, 2, 50.0 };
 
 bool readConfig(struct Qm3032Config &config)
 {
   fs::File file = SPIFFS.open("/config.bin", "r"); 
   if (file)
   {
-    bool success = file.read(reinterpret_cast<uint8_t *>(&config), sizeof(struct Qm3032Config)) == sizeof(struct Qm3032Config);
+    bool success = file.read(reinterpret_cast<uint8_t *>(&config), sizeof(struct Qm3032Config)) <= sizeof(struct Qm3032Config);
     file.close();
     return success;
   }
@@ -515,14 +524,15 @@ void setup()
   SPIFFS.begin();
   getSplashImages();
 
+  config = defaultConfig;
   if (!readConfig(config))
   {
     Serial.printf("Read config failed\n");
-    config = defaultConfig;
   }
 
   setTemperature(config.temperature);
   setPidTunings(PID_P, 0, 0);
+  setBrewingUnitTemperature(config.brewingUnitTemperature);
 
   xTaskCreatePinnedToCore(lvglUpdateTaskFunc, "lvglUpdateTask", 10000, NULL, 1, &lvglUpdateTask, 0);
 
@@ -610,7 +620,7 @@ void updateUi()
   }
   else
   {
-    float portaTemperatureAvgDegree = portaTemperateAvg.get();
+    float brewingUnitTemperatureAvgDegree = brewingUnitTemperateAvg.get();
 
     if (lv_scr_act() != standbyScreen)
     {
@@ -622,18 +632,18 @@ void updateUi()
     lv_arc_set_angles(standbyTemperatureArc, 0, temperatureAvgDegree / TEMPERATURE_SAFETY_GUARD * 250);
     lv_obj_set_style_arc_color(standbyTemperatureArc, lv_color_hex(tempGradient.getRgb(temperatureAvgDegree)), LV_PART_INDICATOR | LV_STATE_DEFAULT );
 
-    int portaTemperatureAvgDegreeInt = (int) portaTemperatureAvgDegree;
-    if (portaTemperatureAvgDegreeInt >= 100)
+    int brewingUnitTemperatureAvgDegreeInt = (int) brewingUnitTemperatureAvgDegree;
+    if (brewingUnitTemperatureAvgDegreeInt >= 100)
     {
-      lv_label_set_text_fmt(portaTemperatureLabel, "%d°", portaTemperatureAvgDegreeInt);
+      lv_label_set_text_fmt(brewingUnitTemperatureLabel, "%d°", brewingUnitTemperatureAvgDegreeInt);
     }
     else
     {
-      lv_label_set_text_fmt(portaTemperatureLabel, "%.1f°", portaTemperatureAvgDegree);
+      lv_label_set_text_fmt(brewingUnitTemperatureLabel, "%.1f°", brewingUnitTemperatureAvgDegree);
     }
 
-    lv_arc_set_angles(portaTemperatureArc, 0, portaTemperatureAvgDegree / 80 * 250);
-    lv_obj_set_style_arc_color(portaTemperatureArc, lv_color_hex(tempGradient.getRgb(portaTemperatureAvgDegree)), LV_PART_INDICATOR | LV_STATE_DEFAULT );
+    lv_arc_set_angles(brewingUnitTemperatureArc, 0, brewingUnitTemperatureAvgDegree / 80 * 250);
+    lv_obj_set_style_arc_color(brewingUnitTemperatureArc, lv_color_hex(brewingUnitTempGradient.getRgb(brewingUnitTemperatureAvgDegree)), LV_PART_INDICATOR | LV_STATE_DEFAULT );
   }
 }
 
@@ -653,8 +663,8 @@ void processBt()
       
       if (!strcmp("get config", buf))
       {
-        bt.printf("temp %f waterTemp %f pumpPower %f steamTemp %f steamWaterSupplyCycles %d preinfusionVolume %f preinfusionPressure %f preinfusionDuration %d\n", 
-          config.temperature, config.waterTemperature, config.pumpPower, config.steamTemperature, config.steamWaterSupplyCycles, config.preinfusionVolume, config.preinfusionPressure, config.preinfusionDuration);
+        bt.printf("temp %f waterTemp %f pumpPower %f steamTemp %f steamWaterSupplyCycles %d preinfusionVolume %f preinfusionPressure %f preinfusionDuration %d brewingUnitTemp %f\n", 
+          config.temperature, config.waterTemperature, config.pumpPower, config.steamTemperature, config.steamWaterSupplyCycles, config.preinfusionVolume, config.preinfusionPressure, config.preinfusionDuration, config.brewingUnitTemperature);
       }
       else
       {
@@ -744,7 +754,20 @@ void processBt()
           {
             bt.printf("error range %f %f\n", 1.0, 4.0);
           }
-        }        
+        }
+        if (sscanf(buf, "set brewingUnitTemp %f", &value) > 0)
+        {
+          if (value > 70 && value < 40)
+          {
+            config.brewingUnitTemperature = value;
+            writeConfig(config);
+            setBrewingUnitTemperature(config.brewingUnitTemperature);
+          }
+          else
+          {
+            bt.printf("error range 40.0 70.0\n");
+          }
+        }      
       }
     }
   }
@@ -962,10 +985,10 @@ void loop()
       }
     }
 
-    float portaTemperature;
-    if (ReadMlx60914PTemperatureValue(0x07, &portaTemperature) == 0)
+    float brewingUnitTemperature;
+    if (ReadMlx60914PTemperatureValue(0x07, &brewingUnitTemperature) == 0)
     {
-      portaTemperateAvg.push(portaTemperature);
+      brewingUnitTemperateAvg.push(brewingUnitTemperature);
     }
     else
     {
