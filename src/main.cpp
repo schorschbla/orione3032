@@ -67,10 +67,12 @@
 
 #define PREINFUSION_LAG_ML  0.4
 
+#define READY_NOTIFICATION_INTERVAL 60000
+
 unsigned int const heatGradient[] = { 0x7f7f7f, 0x0000ff, 0x00a591, 0x00ff00, 0xffff00, 0xff0000 };
 static float pressureHeatWeights[] = { 1.0f, 5.0f, 2.0f, 2.0f, 1.0f };
-static float temperatureHeatWeights[] = { 5.0f, 85.0f, 10.0f, 2.0f, 3.0f };
-static float brewingUnitTemperatureHeatWeights[] = { 5.0f, 40.0f, 5.0f, 10.0f, 10.0f };
+static float temperatureHeatWeights[] = { 5.0f, 0.0f, 2.0f, 2.0f, 3.0f };
+static float brewingUnitTemperatureHeatWeights[] = { 5.0f, 0.0f, 5.0f, 20.0f, 10.0f };
 
 int ReadXdb401PressureValue(int *result);
 int ReadMlx60914PTemperatureValue(uint8_t reg, float *result);
@@ -112,13 +114,13 @@ unsigned char splashBuf[256];
 void setTemperature(float t)
 {
   temperatureSet = t;
-  temperatureHeatWeights[1] = temperatureSet - 15;
+  temperatureHeatWeights[1] = temperatureSet - temperatureHeatWeights[0] - temperatureHeatWeights[2];
 }
 
 void setBrewingUnitTemperature(float t)
 {
   brewingUnitTemperature = t;
-  brewingUnitTemperatureHeatWeights[1] = brewingUnitTemperature - 10;
+  brewingUnitTemperatureHeatWeights[1] = brewingUnitTemperature - brewingUnitTemperatureHeatWeights[0] - brewingUnitTemperatureHeatWeights[2];
 }
 
 unsigned int flowCounter = 0;
@@ -541,8 +543,6 @@ void setup()
 
   pcnt_counter_clear(FLOW_METER_PCNT_UNIT);
   pcnt_counter_resume(FLOW_METER_PCNT_UNIT);
-
-  readyMelody();
 }
 
 unsigned long cycle = 0;
@@ -554,6 +554,8 @@ unsigned int splashCurrent = 0;
 
 bool temperatureArrival = false;
 unsigned int lastTemperatureArrivalChange = 0;
+
+unsigned int readyCycleCount = 0;
 
 unsigned int flowCounterInfusionStart;
 
@@ -886,8 +888,6 @@ void loop()
       infusionConstantHeatingPower = abs(temperatureIs - config.temperature) < TEMPERATURE_ARRIVAL_THRESHOLD ? pidAvg.get() : 0.0;
 
       preinfusionPressureReached = false;
-
-      readyMelody();
    }
     else
     {
@@ -1078,6 +1078,15 @@ void loop()
 
   if (!infusing && !steam)
   {
+    if (abs(temperateAvg.get() - temperatureSet) < 0.5f && brewingUnitTemperateAvg.get() >= brewingUnitTemperature)
+    {
+      if (readyCycleCount % (READY_NOTIFICATION_INTERVAL / CYCLE_LENGTH) == 0)
+      {
+        readyMelody();
+      }
+      readyCycleCount++;
+    }
+
     processBt();
   }
 
