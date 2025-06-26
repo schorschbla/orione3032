@@ -466,11 +466,9 @@ pcnt_config_t flowMeterPcntConfig = {
 
 void readyMelody()
 {
-  tone(PIN_BUZZER, 1056, 200);
+  tone(PIN_BUZZER, 1056, 150);
   tone(PIN_BUZZER, 0, 20);
-  tone(PIN_BUZZER, 792, 200);
-  tone(PIN_BUZZER, 0, 20);
-  tone(PIN_BUZZER, 1056, 200);
+  tone(PIN_BUZZER, 792, 150);
 }
 
 void setup()
@@ -759,7 +757,7 @@ void processBt()
         }
         if (sscanf(buf, "set brewingUnitTemp %f", &value) > 0)
         {
-          if (value > 70 && value < 40)
+          if (value >= 40.0 && value <= 70.0)
           {
             config.brewingUnitTemperature = value;
             writeConfig(config);
