@@ -243,7 +243,7 @@ void initInfuseUi()
   lv_obj_align(infuseTemperatureLabel, LV_ALIGN_CENTER, 0, 44);
 }
 
-void initPairingUi()
+void initPairingUi(char *btDeviceName)
 {
   pairingWaitScreen = lv_obj_create(NULL);
 
@@ -251,15 +251,22 @@ void initPairingUi()
   lv_obj_set_style_text_font(symbolLabel, &lv_font_montserrat_48, 0);
   lv_obj_set_width(symbolLabel, 230);
   lv_obj_set_style_text_align(symbolLabel, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(symbolLabel, LV_ALIGN_CENTER, 0, -50);
+  lv_obj_align(symbolLabel, LV_ALIGN_CENTER, 0, -80);
   lv_label_set_text_fmt(symbolLabel, LV_SYMBOL_BLUETOOTH);
 
   lv_obj_t *pairingLabel = lv_label_create(pairingWaitScreen);
-  lv_obj_set_style_text_font(pairingLabel, &lv_font_montserrat_36, 0);
+  lv_obj_set_style_text_font(pairingLabel, &lv_font_montserrat_32, 0);
   lv_obj_set_width(pairingLabel, 230);
   lv_obj_set_style_text_align(pairingLabel, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(pairingLabel, LV_ALIGN_CENTER, 0, 20);
+  lv_obj_align(pairingLabel, LV_ALIGN_CENTER, 0, -18);
   lv_label_set_text_fmt(pairingLabel, "Kopplung\naktiv");
+
+  lv_obj_t *deviceNameLabel = lv_label_create(pairingWaitScreen);
+  lv_obj_set_style_text_font(deviceNameLabel, &lv_font_montserrat_20, 0);
+  lv_obj_set_width(deviceNameLabel, 190);
+  lv_obj_set_style_text_align(deviceNameLabel, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_align(deviceNameLabel, LV_ALIGN_CENTER, 0, 50);
+  lv_label_set_text_fmt(deviceNameLabel, "Name: %s", btDeviceName);
 
   pairingPinScreen = lv_obj_create(NULL);
 
@@ -394,9 +401,10 @@ struct Qm3032Config
   float steamTemperature;
   uint8_t steamWaterSupplyCycles;
   float brewingUnitTemperature;
+  char btDeviceName[32];
 };
 
-struct Qm3032Config defaultConfig = { 1, 92.0, 20.0, 0.73, 8.0, 10000, 4.0, 125.0, 2, 50.0 };
+struct Qm3032Config defaultConfig = { 1, 90.0, 20.0, 0.73, 8.0, 12000, 2.0, 125.0, 2, 55.0, { 0 } };
 
 bool readConfig(struct Qm3032Config &config)
 {
@@ -471,6 +479,24 @@ void readyMelody()
   tone(PIN_BUZZER, 792, 150);
 }
 
+void getDefaultBtDeviceName(BluetoothSerial &bt, char* out, size_t length)
+{
+  uint8_t mac[ESP_BD_ADDR_LEN];
+  int pos;
+
+  bt.begin();
+  bt.getBtAddress(mac);
+  bt.end();
+
+  strncpy(out, "Qm3032-", length - 1);
+  pos = strlen(out);
+
+  for (int i = 0; i < 6 && pos < length - 1; ++i)
+  {
+    pos += sprintf(out + pos, "%02x", mac[i]);
+  }
+}
+
 void setup()
 {
   Serial.begin(9600);
@@ -486,16 +512,30 @@ void setup()
   infusing = digitalRead(PIN_INFUSE_SWITCH);
   steam = digitalRead(PIN_STEAM_SWITCH);
 
+  SPIFFS.begin();
+
+  config = defaultConfig;
+  if (!readConfig(config))
+  {
+    Serial.printf("Read config failed\n");
+  }
+
   bt.enableSSP();
+
+  if (config.btDeviceName[0] == 0)
+  {
+    getDefaultBtDeviceName(bt, config.btDeviceName, sizeof(config.btDeviceName));
+    writeConfig(config);
+  }
 
   if (infusing || steam)
   {
     pairingState = PAIRING_STATE_WAITING;
     bt.onConfirmRequest(BTConfirmRequestCallback);
     bt.onAuthComplete(BTAuthCompleteCallback);
-    bt.begin("Qm3032");
+    bt.begin(config.btDeviceName);
 
-    initPairingUi();
+    initPairingUi(config.btDeviceName);
     lv_scr_load(pairingWaitScreen);
 
     return;
@@ -521,14 +561,7 @@ void setup()
 
   powerBegin(0);
 
-  SPIFFS.begin();
   getSplashImages();
-
-  config = defaultConfig;
-  if (!readConfig(config))
-  {
-    Serial.printf("Read config failed\n");
-  }
 
   setTemperature(config.temperature);
   setPidTunings(PID_P, 0, 0);
@@ -537,7 +570,7 @@ void setup()
   xTaskCreatePinnedToCore(lvglUpdateTaskFunc, "lvglUpdateTask", 10000, NULL, 1, &lvglUpdateTask, 0);
 
   bt.onConfirmRequest(BTIgnoreRequestCallback);
-  bt.begin("Qm3032", false);
+  bt.begin(config.btDeviceName, false);
 
   pcnt_counter_clear(FLOW_METER_PCNT_UNIT);
   pcnt_counter_resume(FLOW_METER_PCNT_UNIT);
