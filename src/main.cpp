@@ -352,7 +352,15 @@ void lvglUpdateTaskFunc(void *parameter)
     vTaskSuspend(NULL);
     unsigned long start = millis();
 
-    if (!infusing && !steam && !splashFiles.empty())
+    bool displaySplash = !infusing && !steam && !splashFiles.empty();
+    if (!displaySplash)
+    {
+      display.clearLvglExcludedArea();
+    }
+
+    lv_timer_handler();
+
+    if (displaySplash)
     {
       display.setLvglExlucdedArea(excluded);
       unsigned long now = millis();
@@ -374,12 +382,6 @@ void lvglUpdateTaskFunc(void *parameter)
         currentSplashPos++;
       }
     }
-    else
-    {
-      display.clearLvglExcludedArea();
-    }
-
-    lv_timer_handler();
   }
 }
 
@@ -503,6 +505,8 @@ void setup()
 
   pinMode(PIN_INFUSE_SWITCH, INPUT_PULLDOWN);
   pinMode(PIN_STEAM_SWITCH, INPUT_PULLDOWN);
+
+  pinMode(PIN_GC9A01_BL, OUTPUT);
 
   display.init();
   display.setRotation(1);
@@ -892,6 +896,15 @@ void loopPairing()
 void loop()
 {
   unsigned long windowStart = millis();
+
+  if (cycle < 64)
+  {
+    analogWrite(PIN_GC9A01_BL, cycle * 4);
+  }
+  else if (cycle == 64)
+  {
+    digitalWrite(PIN_GC9A01_BL, 1);
+  }
 
   if (pairingState != 0)
   {
