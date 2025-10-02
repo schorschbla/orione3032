@@ -858,6 +858,7 @@ void loopPairing()
     {
       pairingState = PAIRING_STATE_SUCCESS;
       lv_scr_load(pairingSuccessScreen);
+      readyMelody();
     }
     else
     {
