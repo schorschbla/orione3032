@@ -909,6 +909,7 @@ void loop()
   if (pairingState != 0)
   {
     loopPairing();
+    cycle++;
     return;
   }
 
