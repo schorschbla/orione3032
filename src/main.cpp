@@ -404,9 +404,10 @@ struct Qm3032Config
   uint8_t steamWaterSupplyCycles;
   float brewingUnitTemperature;
   char btDeviceName[32];
+  float volumeBasedHeatingFactor;
 };
 
-struct Qm3032Config defaultConfig = { 1, 90.0, 20.0, 0.73, 8.0, 12000, 2.0, 125.0, 2, 55.0, { 0 } };
+struct Qm3032Config defaultConfig = { 1, 90.0, 20.0, 0.73, 8.0, 12000, 2.0, 125.0, 2, 55.0, { 0 }, 1.0 };
 
 bool readConfig(struct Qm3032Config &config)
 {
@@ -700,8 +701,8 @@ void processBt()
       
       if (!strcmp("get config", buf))
       {
-        bt.printf("temp %f waterTemp %f pumpPower %f steamTemp %f steamWaterSupplyCycles %d preinfusionVolume %f preinfusionPressure %f preinfusionDuration %d brewingUnitTemp %f\n", 
-          config.temperature, config.waterTemperature, config.pumpPower, config.steamTemperature, config.steamWaterSupplyCycles, config.preinfusionVolume, config.preinfusionPressure, config.preinfusionDuration, config.brewingUnitTemperature);
+        bt.printf("temp %f waterTemp %f pumpPower %f steamTemp %f steamWaterSupplyCycles %d preinfusionVolume %f preinfusionPressure %f preinfusionDuration %d brewingUnitTemp %f volumeBasedHeatingFactor %f\n", 
+          config.temperature, config.waterTemperature, config.pumpPower, config.steamTemperature, config.steamWaterSupplyCycles, config.preinfusionVolume, config.preinfusionPressure, config.preinfusionDuration, config.brewingUnitTemperature, config.volumeBasedHeatingFactor);
       }
       else
       {
@@ -792,7 +793,7 @@ void processBt()
             bt.printf("error range %f %f\n", 1.0, 4.0);
           }
         }
-        if (sscanf(buf, "set brewingUnitTemp %f", &value) > 0)
+        else if (sscanf(buf, "set brewingUnitTemp %f", &value) > 0)
         {
           if (value >= 40.0 && value <= 70.0)
           {
@@ -804,7 +805,23 @@ void processBt()
           {
             bt.printf("error range 40.0 70.0\n");
           }
-        }      
+        }    
+        else if (sscanf(buf, "set volumeBasedHeatingFactor %f", &value) > 0)
+        {
+          if (value >= 0.0 && value <= 2.0)
+          {
+            config.volumeBasedHeatingFactor = value;
+            writeConfig(config);
+          }
+          else
+          {
+            bt.printf("error range 0.0 2.0\n");
+          }
+        }  
+        else 
+        {
+          bt.printf("Unknown command %s\n", buf);
+        }
       }
     }
   }
@@ -1101,7 +1118,7 @@ void loop()
         if (temperateAvg.get() < 100) 
         {
           float infusionVolume = (currentFlowCounter - flowCounterInfusionStart) * FLOW_ML_PER_TICK;
-          float heatingEnergy = infusionVolume * (config.temperature - config.waterTemperature) * HEATING_ENERGY_PER_ML_AND_KELVIN_WATTSECONDS;
+          float heatingEnergy = infusionVolume * (config.temperature - config.waterTemperature) * HEATING_ENERGY_PER_ML_AND_KELVIN_WATTSECONDS * config.volumeBasedHeatingFactor;
           unsigned int heatingCyclesSet = heatingEnergy / HEATING_OUTPUT_WATTS * 1000 / HEATING_CYCLE_LENGTH;
           if (heatingCyclesSet > infusionHeatingCyclesIs) 
           {
