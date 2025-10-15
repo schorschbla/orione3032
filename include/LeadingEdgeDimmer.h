@@ -19,7 +19,7 @@ private:
     uint8_t pin;
     hw_timer_t *timer;
 
-    IRAM_ATTR virtual void onZeroCross();
-    IRAM_ATTR void onTimerInterrupt();
-    IRAM_ATTR friend void onTimerInterruptArg(void *arg);
+    virtual void onZeroCross();
+    void onTimerInterrupt();
+    friend void onTimerInterruptArg(void *arg);
 };

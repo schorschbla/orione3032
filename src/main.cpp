@@ -87,9 +87,9 @@ int ReadMlx60914PTemperatureValue(uint8_t reg, float *result);
 
 Gc9a01Display display(GC9A01_SPI_WRITE_FREQUENCY, PIN_GC9A01_SCLK, PIN_GC9A01_MOSI, PIN_GC9A01_DC, PIN_GC9A01_CS, PIN_GC9A01_RST);
 
-ZeroCrossDetector zeroCrossDetector(PIN_AC_ZEROCROSS);
-SolidStateRelay heatingRelay(PIN_HEATING_AC, zeroCrossDetector);
-LeadingEdgeDimmer pumpDimmer(PIN_PUMP_AC, zeroCrossDetector);
+IRAM_ATTR ZeroCrossDetector zeroCrossDetector(PIN_AC_ZEROCROSS);
+IRAM_ATTR SolidStateRelay heatingRelay(PIN_HEATING_AC, zeroCrossDetector);
+IRAM_ATTR LeadingEdgeDimmer pumpDimmer(PIN_PUMP_AC, zeroCrossDetector);
 Xdb401PressureSensor pressureSensor(Wire, 20.0);
 
 SPIClass hspi(HSPI);

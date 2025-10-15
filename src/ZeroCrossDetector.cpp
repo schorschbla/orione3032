@@ -11,7 +11,7 @@ ZeroCrossDetector::~ZeroCrossDetector()
     end();
 }
 
-void onInterruptArg(void *arg)
+IRAM_ATTR void onInterruptArg(void *arg)
 {
     static_cast<ZeroCrossDetector*>(arg)->onInterrupt();
 }
@@ -62,7 +62,7 @@ bool ZeroCrossDetector::removeListener(ZeroCrossListener *listener)
     return false;
 }
 
-void ZeroCrossDetector::onInterrupt()
+IRAM_ATTR void ZeroCrossDetector::onInterrupt()
 {
     uint32_t time = micros();
 	if (lastZeroCrossTime == 0 || time - lastZeroCrossTime > ZeroCrossThresholdUs)

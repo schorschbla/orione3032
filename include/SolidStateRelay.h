@@ -19,5 +19,5 @@ private:
     uint32_t _requestedCycles;
     uint32_t _cycles;
     
-    IRAM_ATTR virtual void onZeroCross();
+    virtual void onZeroCross();
 };

@@ -26,7 +26,7 @@ void SolidStateRelay::setCycles(uint32_t cycles, boolean reset)
     _requestedCycles = (reset ? _cycles : _requestedCycles) + cycles;
 }
 
-void SolidStateRelay::onZeroCross()
+IRAM_ATTR void SolidStateRelay::onZeroCross()
 {
     if (_requestedCycles < _cycles)
     {

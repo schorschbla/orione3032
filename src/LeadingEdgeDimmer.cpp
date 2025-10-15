@@ -12,7 +12,7 @@ LeadingEdgeDimmer::~LeadingEdgeDimmer()
     end();
 }
 
-void onTimerInterruptArg(void *arg)
+IRAM_ATTR void onTimerInterruptArg(void *arg)
 {
     static_cast<LeadingEdgeDimmer*>(arg)->onTimerInterrupt();
 }
@@ -41,10 +41,10 @@ void LeadingEdgeDimmer::end()
 
 void LeadingEdgeDimmer::setLevel(uint8_t level)
 {
-    leadingEdgeDelay = sin((double)level / UINT8_MAX * PI / 2) * CycleLength;
+    leadingEdgeDelay = sin((double)(UINT8_MAX - level) / UINT8_MAX * PI / 2) * CycleLength;
 }
 
-void LeadingEdgeDimmer::onZeroCross()
+IRAM_ATTR void LeadingEdgeDimmer::onZeroCross()
 {
     if (leadingEdgeDelay != 0)
     {
@@ -61,7 +61,7 @@ void LeadingEdgeDimmer::onZeroCross()
     }
 }
 
-void LeadingEdgeDimmer::onTimerInterrupt()
+IRAM_ATTR void LeadingEdgeDimmer::onTimerInterrupt()
 {
     digitalWrite(pin, HIGH);
 }
