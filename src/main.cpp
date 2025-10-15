@@ -13,12 +13,19 @@
 #include <vector>
 
 #include "gradient.h"
-#include "power.h"
 #include "display.h"
+#include "SolidStateRelay.h"
+#include "LeadingEdgeDimmer.h"
 
 //lv_font_conv  --no-compress --no-prefilter --bpp 4 --size 20 --font Montserrat-Medium.ttf -r 0x20-0x7f,0xdf,0xe4,0xf6,0xfc,0xc4,0xd6,0xdc,0xb0  --font FontAwesome5-Solid+Brands+Regular.woff -r 61441,61448,61451,61452,61452,61453,61457,61459,61461,61465,61468,61473,61478,61479,61480,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61587,61589,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61787,61931,62016,62017,62018,62019,62020,62087,62099,62212,62189,62810,63426,63650,62033 --format lvgl -o lv_font_montserrat_20.c --force-fast-kern-format
 //lv_font_conv  --no-compress --no-prefilter --bpp 4 --size 36 --font Montserrat-Medium.ttf -r 0x20-0x7f,0xdf,0xe4,0xf6,0xfc,0xc4,0xd6,0xdc,0xb0  --font FontAwesome5-Solid+Brands+Regular.woff -r 61441,61448,61451,61452,61452,61453,61457,61459,61461,61465,61468,61473,61478,61479,61480,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61587,61589,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61787,61931,62016,62017,62018,62019,62020,62087,62099,62212,62189,62810,63426,63650,62033 --format lvgl -o lv_font_montserrat_36.c --force-fast-kern-format
 //lv_font_conv  --no-compress --no-prefilter --bpp 4 --size 48 --font Montserrat-Medium.ttf -r 0x20-0x7f,0xdf,0xe4,0xf6,0xfc,0xc4,0xd6,0xdc,0xb0  --font FontAwesome5-Solid+Brands+Regular.woff -r 61441,61448,61451,61452,61452,61453,61457,61459,61461,61465,61468,61473,61478,61479,61480,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61587,61589,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61787,61931,62016,62017,62018,62019,62020,62087,62099,62212,62189,62810,63426,63650,62033 --format lvgl -o lv_font_montserrat_48.c --force-fast-kern-format
+
+extern const lv_font_t lv_font_my_montserrat_48;
+extern const lv_font_t lv_font_my_montserrat_40;
+extern const lv_font_t lv_font_my_montserrat_36;
+extern const lv_font_t lv_font_my_montserrat_32;
+extern const lv_font_t lv_font_my_montserrat_20;
 
 #define PID_P                             2.7
 #define PID_I                             0.05
@@ -69,6 +76,8 @@
 
 #define READY_NOTIFICATION_INTERVAL 60000
 
+#define HEATING_CYCLE_LENGTH    10
+
 unsigned int const heatGradient[] = { 0x7f7f7f, 0x0000ff, 0x00a591, 0x00ff00, 0xffff00, 0xff0000 };
 static float pressureHeatWeights[] = { 1.0f, 5.0f, 2.0f, 2.0f, 1.0f };
 static float temperatureHeatWeights[] = { 5.0f, 0.0f, 2.0f, 2.0f, 3.0f };
@@ -78,6 +87,10 @@ int ReadXdb401PressureValue(int *result);
 int ReadMlx60914PTemperatureValue(uint8_t reg, float *result);
 
 Display display(GC9A01_SPI_WRITE_FREQUENCY, PIN_GC9A01_SCLK, PIN_GC9A01_MOSI, PIN_GC9A01_DC, PIN_GC9A01_CS, PIN_GC9A01_RST);
+
+ZeroCrossDetector zeroCrossDetector(PIN_AC_ZEROCROSS);
+SolidStateRelay heatingRelay(PIN_HEATING_AC, zeroCrossDetector);
+LeadingEdgeDimmer pumpDimmer(PIN_PUMP_AC, zeroCrossDetector);
 
 SPIClass hspi(HSPI);
 Adafruit_MAX31865 thermo(PIN_MAX31865_SELECT, &hspi);
@@ -564,7 +577,9 @@ void setup()
   initInfuseUi();
   lv_scr_load(standbyScreen);
 
-  powerBegin(0);
+  heatingRelay.begin();
+  pumpDimmer.begin();
+  zeroCrossDetector.begin();
 
   getSplashImages();
 
@@ -954,13 +969,13 @@ void loop()
    }
     else
     {
-      setHeatingCylces(0);
+      heatingRelay.setCycles(0);
 
       setTemperature(config.temperature);
       setPidTunings(PID_P, 0, 0);
       temperatureArrival = false;
 
-      pumpSetLevel(0);
+      pumpDimmer.setLevel(0);
       valveDeadline = windowStart + (windowStart - infuseStart < 10000 ? 20000 : 2000);
 
       currentSplashPos = 0;
@@ -980,7 +995,7 @@ void loop()
     else
     {
       setTemperature(config.temperature);
-      pumpSetLevel(0);
+      pumpDimmer.setLevel(0);
       setPidTunings(PID_P, 0, 0);
       temperatureArrival = false;
       digitalWrite(PIN_VALVE_AC, LOW);
@@ -1008,17 +1023,17 @@ void loop()
         }
       }
 
-      pumpSetLevel(pumpValue * UINT8_MAX);
+      pumpDimmer.setLevel(pumpValue * UINT8_MAX);
   }
   else if (steam)
   {
       if (cycle % STEAM_PULSATOR_INTERVAL_CYCLES == 0 && temperatureIs > STEAM_WATER_SUPPLY_MIN_TEMPERATURE)
       {
-         pumpSetLevel(PUMP_MIN_POWER * UINT8_MAX);
+         pumpDimmer.setLevel(PUMP_MIN_POWER * UINT8_MAX);
       }
       else if (cycle % STEAM_PULSATOR_INTERVAL_CYCLES == config.steamWaterSupplyCycles)
       {
-         pumpSetLevel(0);
+         pumpDimmer.setLevel(0);
       }
   }
 
@@ -1065,7 +1080,7 @@ void loop()
     {
       if (infusionConstantHeatingPower > 0)
       {
-        setHeatingCylces(infusionConstantHeatingPower / PID_MAX_OUTPUT * (PID_INTERVAL_CYCLES * CYCLE_LENGTH / HEATING_CYCLE_LENGTH), false);
+        heatingRelay.setCycles(infusionConstantHeatingPower / PID_MAX_OUTPUT * (PID_INTERVAL_CYCLES * CYCLE_LENGTH / HEATING_CYCLE_LENGTH), false);
       }
     }
     else
@@ -1086,7 +1101,7 @@ void loop()
 
       if (pidOut > 0) 
       {
-        setHeatingCylces(pidOut / PID_MAX_OUTPUT * (PID_INTERVAL_CYCLES * CYCLE_LENGTH / HEATING_CYCLE_LENGTH));
+        heatingRelay.setCycles(pidOut / PID_MAX_OUTPUT * (PID_INTERVAL_CYCLES * CYCLE_LENGTH / HEATING_CYCLE_LENGTH));
       }
     }
   }
@@ -1122,7 +1137,7 @@ void loop()
           unsigned int heatingCyclesSet = heatingEnergy / HEATING_OUTPUT_WATTS * 1000 / HEATING_CYCLE_LENGTH;
           if (heatingCyclesSet > infusionHeatingCyclesIs) 
           {
-            setHeatingCylces(heatingCyclesSet - infusionHeatingCyclesIs, false);
+            heatingRelay.setCycles(heatingCyclesSet - infusionHeatingCyclesIs, false);
             infusionHeatingCyclesIs = heatingCyclesSet;
           }
         }
