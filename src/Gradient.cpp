@@ -1,5 +1,6 @@
+#include "Gradient.h"
+
 #include <algorithm> 
-#include "gradient.h"
 
 Gradient::Gradient(const unsigned int *rgb, const float *weights, unsigned char length) :
     rgb(rgb), weights(weights), length(length)

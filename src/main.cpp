@@ -7,15 +7,15 @@
 #include <SPIFFS.h>
 #include <PID_v1.h>
 #include <driver/pcnt.h>
-
-#include "BluetoothSerial.h"
+#include <BluetoothSerial.h>
 
 #include <vector>
 
-#include "gradient.h"
-#include "display.h"
+#include "Gradient.h"
+#include "Gc9a01Display.h"
 #include "SolidStateRelay.h"
 #include "LeadingEdgeDimmer.h"
+#include "Xdb401PressureSensor.h"
 
 //lv_font_conv  --no-compress --no-prefilter --bpp 4 --size 20 --font Montserrat-Medium.ttf -r 0x20-0x7f,0xdf,0xe4,0xf6,0xfc,0xc4,0xd6,0xdc,0xb0  --font FontAwesome5-Solid+Brands+Regular.woff -r 61441,61448,61451,61452,61452,61453,61457,61459,61461,61465,61468,61473,61478,61479,61480,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61587,61589,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61787,61931,62016,62017,62018,62019,62020,62087,62099,62212,62189,62810,63426,63650,62033 --format lvgl -o lv_font_montserrat_20.c --force-fast-kern-format
 //lv_font_conv  --no-compress --no-prefilter --bpp 4 --size 36 --font Montserrat-Medium.ttf -r 0x20-0x7f,0xdf,0xe4,0xf6,0xfc,0xc4,0xd6,0xdc,0xb0  --font FontAwesome5-Solid+Brands+Regular.woff -r 61441,61448,61451,61452,61452,61453,61457,61459,61461,61465,61468,61473,61478,61479,61480,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61587,61589,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61787,61931,62016,62017,62018,62019,62020,62087,62099,62212,62189,62810,63426,63650,62033 --format lvgl -o lv_font_montserrat_36.c --force-fast-kern-format
@@ -83,14 +83,14 @@ static float pressureHeatWeights[] = { 1.0f, 5.0f, 2.0f, 2.0f, 1.0f };
 static float temperatureHeatWeights[] = { 5.0f, 0.0f, 2.0f, 2.0f, 3.0f };
 static float brewingUnitTemperatureHeatWeights[] = { 5.0f, 0.0f, 5.0f, 20.0f, 10.0f };
 
-int ReadXdb401PressureValue(int *result);
 int ReadMlx60914PTemperatureValue(uint8_t reg, float *result);
 
-Display display(GC9A01_SPI_WRITE_FREQUENCY, PIN_GC9A01_SCLK, PIN_GC9A01_MOSI, PIN_GC9A01_DC, PIN_GC9A01_CS, PIN_GC9A01_RST);
+Gc9a01Display display(GC9A01_SPI_WRITE_FREQUENCY, PIN_GC9A01_SCLK, PIN_GC9A01_MOSI, PIN_GC9A01_DC, PIN_GC9A01_CS, PIN_GC9A01_RST);
 
 ZeroCrossDetector zeroCrossDetector(PIN_AC_ZEROCROSS);
 SolidStateRelay heatingRelay(PIN_HEATING_AC, zeroCrossDetector);
 LeadingEdgeDimmer pumpDimmer(PIN_PUMP_AC, zeroCrossDetector);
+Xdb401PressureSensor pressureSensor(Wire, 20.0);
 
 SPIClass hspi(HSPI);
 Adafruit_MAX31865 thermo(PIN_MAX31865_SELECT, &hspi);
@@ -1108,12 +1108,10 @@ void loop()
 
   if (cycle % XDB401_READ_INTERVAL_CYCLES == 0)
   {
-    int pressureSample;
-    if (ReadXdb401PressureValue(&pressureSample) == 0)
+    double pressure;
+    if (pressureSensor.readValue(pressure) == 0)
     {
-        float pressure = (short)(pressureSample / 256) / float(SHRT_MAX) * XDB401_MAX_BAR;
         pressureAvg.push(pressure);
-
         if (infusing && !preinfusionPressureReached && pressureAvg.get() > config.preinfusionPressure)
         {
           preinfusionPressureReached = true;

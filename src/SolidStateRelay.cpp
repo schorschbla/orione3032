@@ -21,7 +21,7 @@ void SolidStateRelay::end()
     zeroCrossDetector.removeListener(this);
 }
 
-void SolidStateRelay::setCycles(uint32_t cycles, boolean reset = false)
+void SolidStateRelay::setCycles(uint32_t cycles, boolean reset)
 {
     _requestedCycles = (reset ? _cycles : _requestedCycles) + cycles;
 }
