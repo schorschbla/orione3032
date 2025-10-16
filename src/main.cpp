@@ -16,6 +16,7 @@
 #include "SolidStateRelay.h"
 #include "LeadingEdgeDimmer.h"
 #include "Xdb401PressureSensor.h"
+#include "Mlx90614TemperatureSensor.h"
 
 //lv_font_conv  --no-compress --no-prefilter --bpp 4 --size 20 --font Montserrat-Medium.ttf -r 0x20-0x7f,0xdf,0xe4,0xf6,0xfc,0xc4,0xd6,0xdc,0xb0  --font FontAwesome5-Solid+Brands+Regular.woff -r 61441,61448,61451,61452,61452,61453,61457,61459,61461,61465,61468,61473,61478,61479,61480,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61587,61589,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61787,61931,62016,62017,62018,62019,62020,62087,62099,62212,62189,62810,63426,63650,62033 --format lvgl -o lv_font_montserrat_20.c --force-fast-kern-format
 //lv_font_conv  --no-compress --no-prefilter --bpp 4 --size 36 --font Montserrat-Medium.ttf -r 0x20-0x7f,0xdf,0xe4,0xf6,0xfc,0xc4,0xd6,0xdc,0xb0  --font FontAwesome5-Solid+Brands+Regular.woff -r 61441,61448,61451,61452,61452,61453,61457,61459,61461,61465,61468,61473,61478,61479,61480,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61587,61589,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61787,61931,62016,62017,62018,62019,62020,62087,62099,62212,62189,62810,63426,63650,62033 --format lvgl -o lv_font_montserrat_36.c --force-fast-kern-format
@@ -57,7 +58,7 @@ extern const lv_font_t lv_font_my_montserrat_20;
 #define CYCLE_LENGTH                      40
 #define MAX31856_READ_INTERVAL_CYCLES     2
 
-#define STEAM_PULSATOR_INTERVAL_CYCLES    32
+#define STEAM_PULSE_INTERVAL_CYCLES    32
 
 #define FLOW_PROCESS_INTERVAL_CYCLES      1
 #define FLOW_ML_PER_TICK                  0.1
@@ -71,19 +72,15 @@ extern const lv_font_t lv_font_my_montserrat_20;
 
 #define HEATING_ENERGY_PER_ML_AND_KELVIN_WATTSECONDS   5.76
 #define HEATING_OUTPUT_WATTS  1000
-
-#define PREINFUSION_LAG_ML  0.4
+#define HEATING_CYCLE_LENGTH    10
 
 #define READY_NOTIFICATION_INTERVAL 60000
 
-#define HEATING_CYCLE_LENGTH    10
 
 unsigned int const heatGradient[] = { 0x7f7f7f, 0x0000ff, 0x00a591, 0x00ff00, 0xffff00, 0xff0000 };
 static float pressureHeatWeights[] = { 1.0f, 5.0f, 2.0f, 2.0f, 1.0f };
 static float temperatureHeatWeights[] = { 5.0f, 0.0f, 2.0f, 2.0f, 3.0f };
 static float brewingUnitTemperatureHeatWeights[] = { 5.0f, 0.0f, 5.0f, 20.0f, 10.0f };
-
-int ReadMlx60914PTemperatureValue(uint8_t reg, float *result);
 
 Gc9a01Display display(GC9A01_SPI_WRITE_FREQUENCY, PIN_GC9A01_SCLK, PIN_GC9A01_MOSI, PIN_GC9A01_DC, PIN_GC9A01_CS, PIN_GC9A01_RST);
 
@@ -91,6 +88,7 @@ IRAM_ATTR ZeroCrossDetector zeroCrossDetector(PIN_AC_ZEROCROSS);
 IRAM_ATTR SolidStateRelay heatingRelay(PIN_HEATING_AC, zeroCrossDetector);
 IRAM_ATTR LeadingEdgeDimmer pumpDimmer(PIN_PUMP_AC, zeroCrossDetector);
 Xdb401PressureSensor pressureSensor(Wire, 20.0);
+Mlx90614TemperatureSensor brewingUnitTemperatureSensor(Wire);
 
 SPIClass hspi(HSPI);
 Adafruit_MAX31865 thermo(PIN_MAX31865_SELECT, &hspi);
@@ -104,8 +102,6 @@ PID temperaturePid(&temperatureIs, &pidOut, &temperatureSet, PID_P, 0, 0, DIRECT
 Gradient tempGradient(heatGradient, temperatureHeatWeights, 6);
 Gradient brewingUnitTempGradient(heatGradient, brewingUnitTemperatureHeatWeights, 6);
 Gradient pressureGradient(heatGradient, pressureHeatWeights, 6);
-
-hw_timer_t *heatingTimer = NULL;
 
 std::vector<fs::File> splashFiles;
 
@@ -750,14 +746,14 @@ void processBt()
         }
         else if (sscanf(buf, "set steamWaterSupplyCycles %d", &intValue) > 0)
         {
-          if (intValue >= 1 && value <= STEAM_PULSATOR_INTERVAL_CYCLES)
+          if (intValue >= 1 && value <= STEAM_PULSE_INTERVAL_CYCLES)
           {
             config.steamWaterSupplyCycles = intValue;
             writeConfig(config);
           }
           else
           {
-            bt.printf("error range 1 %d\n", STEAM_PULSATOR_INTERVAL_CYCLES);
+            bt.printf("error range 1 %d\n", STEAM_PULSE_INTERVAL_CYCLES);
           }
         }
         else if (sscanf(buf, "set preinfusionDuration %d", &intValue) > 0)
@@ -1027,11 +1023,11 @@ void loop()
   }
   else if (steam)
   {
-      if (cycle % STEAM_PULSATOR_INTERVAL_CYCLES == 0 && temperatureIs > STEAM_WATER_SUPPLY_MIN_TEMPERATURE)
+      if (cycle % STEAM_PULSE_INTERVAL_CYCLES == 0 && temperatureIs > STEAM_WATER_SUPPLY_MIN_TEMPERATURE)
       {
          pumpDimmer.setLevel(PUMP_MIN_POWER * UINT8_MAX);
       }
-      else if (cycle % STEAM_PULSATOR_INTERVAL_CYCLES == config.steamWaterSupplyCycles)
+      else if (cycle % STEAM_PULSE_INTERVAL_CYCLES == config.steamWaterSupplyCycles)
       {
          pumpDimmer.setLevel(0);
       }
@@ -1063,8 +1059,8 @@ void loop()
       }
     }
 
-    float brewingUnitTemperature;
-    if (ReadMlx60914PTemperatureValue(0x07, &brewingUnitTemperature) == 0)
+    double brewingUnitTemperature;
+    if (brewingUnitTemperatureSensor.readValue(Mlx90614TemperatureSensor::Register::Obj1, brewingUnitTemperature) == 0)
     {
       brewingUnitTemperateAvg.push(brewingUnitTemperature);
     }
