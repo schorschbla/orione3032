@@ -943,8 +943,7 @@ void loop()
   }
 
   int16_t cycleFlowCount;
-  pcnt_get_counter_value(FLOW_METER_PCNT_UNIT, &cycleFlowCount);
-  pcnt_counter_clear(FLOW_METER_PCNT_UNIT);
+
 
   flowCounter += cycleFlowCount;
 

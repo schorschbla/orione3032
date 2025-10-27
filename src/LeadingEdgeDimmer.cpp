@@ -41,7 +41,7 @@ void LeadingEdgeDimmer::end()
 
 void LeadingEdgeDimmer::setLevel(uint8_t level)
 {
-    leadingEdgeDelay = sin((double)(UINT8_MAX - level) / UINT8_MAX * PI / 2) * CycleLength;
+    leadingEdgeDelay = CycleLength - sin((double)level / UINT8_MAX * PI / 2) * CycleLength;
 }
 
 IRAM_ATTR void LeadingEdgeDimmer::onZeroCross()
