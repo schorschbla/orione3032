@@ -74,10 +74,10 @@
 unsigned int const heatGradient[] = { 0x7f7f7f, 0x0000ff, 0x00a591, 0x00ff00, 0xffff00, 0xff0000 };
 static float pressureHeatWeights[] = { 1.0f, 5.0f, 2.0f, 2.0f, 1.0f };
 static float temperatureHeatWeights[] = { 5.0f, 0.0f, 2.0f, 2.0f, 3.0f };
-static float brewingUnitTemperatureHeatWeights[] = { 5.0f, 0.0f, 5.0f, 20.0f, 10.0f };
+static float brewingUnitTemperatureHeatWeights[] = { 5.0f, 0.0f, 5.0f, 60.0f, 15.0f };
 
 unsigned int const waterLevelGradientColors[] = {  0xff0000, 0xffff00,  0x00ff00 };
-static float waterLevelHeatWeights[] = { 0.2f, 0.2f };
+static float waterLevelHeatWeights[] = { 0.2f, 0.8f };
 
 int ReadXdb401PressureValue(int *result);
 int ReadMlx60914PTemperatureValue(uint8_t reg, float *result);
@@ -154,6 +154,7 @@ lv_obj_t *brewingUnitTemperatureArc;
 lv_obj_t *brewingUnitTemperatureLabel;
 
 lv_obj_t *waterLevelArc;
+lv_obj_t *waterLevelLabel;
 
 lv_obj_t *infuseScreen;
 lv_obj_t *infusePressureArc;
@@ -188,7 +189,7 @@ void initStandbyUi()
   lv_obj_set_style_text_font(standbyTemperatureLabel, &lv_font_montserrat_40, 0);
   lv_obj_set_width(standbyTemperatureLabel, 150);
   lv_obj_set_style_text_align(standbyTemperatureLabel, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(standbyTemperatureLabel, LV_ALIGN_CENTER, 0, -28);
+  lv_obj_align(standbyTemperatureLabel, LV_ALIGN_CENTER, 0, -56);
 
   brewingUnitTemperatureArc = lv_arc_create(standbyScreen);
   lv_obj_set_size(brewingUnitTemperatureArc, 200, 200);
@@ -210,9 +211,15 @@ void initStandbyUi()
 
   brewingUnitTemperatureLabel = lv_label_create(standbyScreen);
   lv_obj_set_style_text_font(brewingUnitTemperatureLabel, &lv_font_montserrat_32, 0);
-  lv_obj_set_width(brewingUnitTemperatureLabel, 150);
-  lv_obj_set_style_text_align(brewingUnitTemperatureLabel, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(brewingUnitTemperatureLabel, LV_ALIGN_CENTER, 0, -62);
+  lv_obj_set_width(brewingUnitTemperatureLabel, 160);
+  lv_obj_set_style_text_align(brewingUnitTemperatureLabel, LV_TEXT_ALIGN_LEFT, 0);
+  lv_obj_align(brewingUnitTemperatureLabel, LV_ALIGN_CENTER, 0, -23);
+
+  waterLevelLabel = lv_label_create(standbyScreen);
+  lv_obj_set_style_text_font(waterLevelLabel, &lv_font_montserrat_32, 0);
+  lv_obj_set_width(waterLevelLabel, 160);
+  lv_obj_set_style_text_align(waterLevelLabel, LV_TEXT_ALIGN_RIGHT, 0);
+  lv_obj_align(waterLevelLabel, LV_ALIGN_CENTER, 0, -23);
 }
 
 void initInfuseUi()
@@ -425,8 +432,8 @@ struct Qm3032Config
   float brewingUnitTemperature;
   char btDeviceName[32];
   float volumeBasedHeatingFactor;
-  uint8_t waterLevelMax;
-  uint8_t waterLevelMin;
+  uint16_t waterLevelMax;
+  uint16_t waterLevelMin;
 };
 
 struct Qm3032Config defaultConfig = { 1, 90.0, 20.0, 0.73, 8.0, 12000, 2.0, 125.0, 2, 55.0, { 0 }, 1.0, 20, 240 };
@@ -711,11 +718,33 @@ void updateUi()
     lv_arc_set_angles(brewingUnitTemperatureArc, 0, brewingUnitTemperatureAvgDegree / 80 * 150);
     lv_obj_set_style_arc_color(brewingUnitTemperatureArc, lv_color_hex(brewingUnitTempGradient.getRgb(brewingUnitTemperatureAvgDegree)), LV_PART_INDICATOR | LV_STATE_DEFAULT );
 
-    float waterLevelRatio = (float)(config.waterLevelMin - waterLevel) / (config.waterLevelMin - config.waterLevelMax);
-    waterLevelRatio = max(0.0f, min(1.0f, waterLevelRatio));
-    lv_arc_set_angles(waterLevelArc, 90 - (waterLevelRatio * 90), 90);
-    lv_obj_set_style_arc_color(waterLevelArc, lv_color_hex(waterLevelGradient.getRgb(waterLevelRatio)), LV_PART_INDICATOR | LV_STATE_DEFAULT );
+    if (waterLevel > 0)
+    {
+      float waterLevelRatio = (float)(config.waterLevelMin - waterLevel) / (config.waterLevelMin - config.waterLevelMax);
+      waterLevelRatio = max(0.0f, min(1.0f, waterLevelRatio));
+      bool warn = waterLevelRatio < 0.15;
+      bool blink = warn && cycle % 20 < 10;
 
+      lv_obj_clear_flag(waterLevelArc, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_clear_flag(waterLevelLabel, LV_OBJ_FLAG_HIDDEN);
+
+      lv_color_t color =  lv_color_hex(waterLevelGradient.getRgb(waterLevelRatio));
+      if (blink)
+      {
+        color = lv_color_change_lightness(color, 64);
+      }
+
+      lv_arc_set_angles(waterLevelArc, 90 - (waterLevelRatio * 90), 90);
+      lv_obj_set_style_arc_color(waterLevelArc, color, LV_PART_INDICATOR | LV_STATE_DEFAULT );
+      
+      lv_label_set_text_fmt(waterLevelLabel, "%d%%", (int)(waterLevelRatio*100));
+      lv_obj_set_style_text_color(waterLevelLabel, warn ? color : lv_color_white(), 0);
+    }
+    else
+    {
+      lv_obj_add_flag(waterLevelArc, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(waterLevelLabel, LV_OBJ_FLAG_HIDDEN);
+    }
   }
 }
 
@@ -737,6 +766,10 @@ void processBt()
       {
         bt.printf("temp %f waterTemp %f pumpPower %f steamTemp %f steamWaterSupplyCycles %d preinfusionVolume %f preinfusionPressure %f preinfusionDuration %d brewingUnitTemp %f volumeBasedHeatingFactor %f\n", 
           config.temperature, config.waterTemperature, config.pumpPower, config.steamTemperature, config.steamWaterSupplyCycles, config.preinfusionVolume, config.preinfusionPressure, config.preinfusionDuration, config.brewingUnitTemperature, config.volumeBasedHeatingFactor);
+      }
+      else if (!strcmp("get waterlevel", buf))
+      {
+        bt.printf("%d\n", waterLevel);
       }
       else
       {
@@ -851,7 +884,31 @@ void processBt()
           {
             bt.printf("error range 0.0 2.0\n");
           }
-        }  
+        }        
+        else if (sscanf(buf, "set waterLevelMin %d", &intValue) > 0)
+        {
+          if (intValue >= 100 && value <= 300)
+          {
+            config.waterLevelMin = intValue;
+            writeConfig(config);
+          }
+          else
+          {
+            bt.printf("error range 100 300\n");
+          }
+        }
+        else if (sscanf(buf, "set waterLevelMax %d", &intValue) > 0)
+        {
+          if (intValue >= 10 && value <= 100)
+          {
+            config.waterLevelMax = intValue;
+            writeConfig(config);
+          }
+          else
+          {
+            bt.printf("error range 10 100\n");
+          }
+        }
         else 
         {
           bt.printf("Unknown command %s\n", buf);
