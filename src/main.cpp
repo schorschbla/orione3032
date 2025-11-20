@@ -2,6 +2,7 @@
 #include <math.h>
 #include <Wire.h>
 #include <Adafruit_MAX31865.h>
+#include <Adafruit_VL53L0X.h>
 #include <DataTome.h>
 #include <FS.h>
 #include <SPIFFS.h>
@@ -15,6 +16,7 @@
 #include "gradient.h"
 #include "power.h"
 #include "display.h"
+#include "MedianAverage.h"
 
 //lv_font_conv  --no-compress --no-prefilter --bpp 4 --size 20 --font Montserrat-Medium.ttf -r 0x20-0x7f,0xdf,0xe4,0xf6,0xfc,0xc4,0xd6,0xdc,0xb0  --font FontAwesome5-Solid+Brands+Regular.woff -r 61441,61448,61451,61452,61452,61453,61457,61459,61461,61465,61468,61473,61478,61479,61480,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61587,61589,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61787,61931,62016,62017,62018,62019,62020,62087,62099,62212,62189,62810,63426,63650,62033 --format lvgl -o lv_font_montserrat_20.c --force-fast-kern-format
 //lv_font_conv  --no-compress --no-prefilter --bpp 4 --size 36 --font Montserrat-Medium.ttf -r 0x20-0x7f,0xdf,0xe4,0xf6,0xfc,0xc4,0xd6,0xdc,0xb0  --font FontAwesome5-Solid+Brands+Regular.woff -r 61441,61448,61451,61452,61452,61453,61457,61459,61461,61465,61468,61473,61478,61479,61480,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61587,61589,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61787,61931,62016,62017,62018,62019,62020,62087,62099,62212,62189,62810,63426,63650,62033 --format lvgl -o lv_font_montserrat_36.c --force-fast-kern-format
@@ -74,6 +76,9 @@ static float pressureHeatWeights[] = { 1.0f, 5.0f, 2.0f, 2.0f, 1.0f };
 static float temperatureHeatWeights[] = { 5.0f, 0.0f, 2.0f, 2.0f, 3.0f };
 static float brewingUnitTemperatureHeatWeights[] = { 5.0f, 0.0f, 5.0f, 20.0f, 10.0f };
 
+unsigned int const waterLevelGradientColors[] = {  0xff0000, 0xffff00,  0x00ff00 };
+static float waterLevelHeatWeights[] = { 0.2f, 0.2f };
+
 int ReadXdb401PressureValue(int *result);
 int ReadMlx60914PTemperatureValue(uint8_t reg, float *result);
 
@@ -81,8 +86,11 @@ Display display(GC9A01_SPI_WRITE_FREQUENCY, PIN_GC9A01_SCLK, PIN_GC9A01_MOSI, PI
 
 SPIClass hspi(HSPI);
 Adafruit_MAX31865 thermo(PIN_MAX31865_SELECT, &hspi);
+Adafruit_VL53L0X waterLevelSensor = Adafruit_VL53L0X();
 
 DataTomeMvAvg<float, double> temperateAvg(20), brewingUnitTemperateAvg(20), pressureAvg(25), flowAvg(10), pidAvg(10);
+
+MedianAverage<uint8_t, 9> waterLevelAverage;
 
 double temperatureSet, temperatureIs, pidOut, brewingUnitTemperature;
 
@@ -91,6 +99,7 @@ PID temperaturePid(&temperatureIs, &pidOut, &temperatureSet, PID_P, 0, 0, DIRECT
 Gradient tempGradient(heatGradient, temperatureHeatWeights, 6);
 Gradient brewingUnitTempGradient(heatGradient, brewingUnitTemperatureHeatWeights, 6);
 Gradient pressureGradient(heatGradient, pressureHeatWeights, 6);
+Gradient waterLevelGradient(waterLevelGradientColors, waterLevelHeatWeights, 2);
 
 hw_timer_t *heatingTimer = NULL;
 
@@ -144,6 +153,8 @@ lv_obj_t *standbyTemperatureLabel;
 lv_obj_t *brewingUnitTemperatureArc;
 lv_obj_t *brewingUnitTemperatureLabel;
 
+lv_obj_t *waterLevelArc;
+
 lv_obj_t *infuseScreen;
 lv_obj_t *infusePressureArc;
 lv_obj_t *infusePressureLabel;
@@ -184,9 +195,18 @@ void initStandbyUi()
   lv_obj_set_style_arc_width(brewingUnitTemperatureArc, 8, LV_PART_MAIN);
   lv_obj_set_style_arc_width(brewingUnitTemperatureArc, 8, LV_PART_INDICATOR);
   lv_arc_set_rotation(brewingUnitTemperatureArc, 145);
-  lv_arc_set_bg_angles(brewingUnitTemperatureArc, 0, 250);
+  lv_arc_set_bg_angles(brewingUnitTemperatureArc, 0, 150);
   lv_obj_remove_style(brewingUnitTemperatureArc, NULL, LV_PART_KNOB);
   lv_obj_center(brewingUnitTemperatureArc);
+
+  waterLevelArc = lv_arc_create(standbyScreen);
+  lv_obj_set_size(waterLevelArc, 200, 200);
+  lv_obj_set_style_arc_width(waterLevelArc, 8, LV_PART_MAIN);
+  lv_obj_set_style_arc_width(waterLevelArc, 8, LV_PART_INDICATOR);
+  lv_arc_set_rotation(waterLevelArc, 305);
+  lv_arc_set_bg_angles(waterLevelArc, 0, 90);
+  lv_obj_remove_style(waterLevelArc, NULL, LV_PART_KNOB);
+  lv_obj_center(waterLevelArc);
 
   brewingUnitTemperatureLabel = lv_label_create(standbyScreen);
   lv_obj_set_style_text_font(brewingUnitTemperatureLabel, &lv_font_montserrat_32, 0);
@@ -405,9 +425,11 @@ struct Qm3032Config
   float brewingUnitTemperature;
   char btDeviceName[32];
   float volumeBasedHeatingFactor;
+  uint8_t waterLevelMax;
+  uint8_t waterLevelMin;
 };
 
-struct Qm3032Config defaultConfig = { 1, 90.0, 20.0, 0.73, 8.0, 12000, 2.0, 125.0, 2, 55.0, { 0 }, 1.0 };
+struct Qm3032Config defaultConfig = { 1, 90.0, 20.0, 0.73, 8.0, 12000, 2.0, 125.0, 2, 55.0, { 0 }, 1.0, 20, 240 };
 
 bool readConfig(struct Qm3032Config &config)
 {
@@ -551,6 +573,10 @@ void setup()
 
   Wire.begin();
 
+  waterLevelSensor.begin();
+  waterLevelSensor.configSensor(Adafruit_VL53L0X::VL53L0X_Sense_config_t::VL53L0X_SENSE_HIGH_ACCURACY);
+  waterLevelSensor.startRange();
+
   hspi.begin(PIN_MAX31865_CLOCK, PIN_MAX31865_MISO, PIN_MAX31865_MOSI);
   
   thermo.begin(MAX31865_3WIRE);
@@ -600,6 +626,8 @@ unsigned int infusionHeatingCyclesIs;
 float infusionConstantHeatingPower;
 
 bool preinfusionPressureReached;
+
+uint8_t waterLevel = 0;
 
 void updateUi()
 {
@@ -680,8 +708,14 @@ void updateUi()
       lv_label_set_text_fmt(brewingUnitTemperatureLabel, "%.1f°", brewingUnitTemperatureAvgDegree);
     }
 
-    lv_arc_set_angles(brewingUnitTemperatureArc, 0, brewingUnitTemperatureAvgDegree / 80 * 250);
+    lv_arc_set_angles(brewingUnitTemperatureArc, 0, brewingUnitTemperatureAvgDegree / 80 * 150);
     lv_obj_set_style_arc_color(brewingUnitTemperatureArc, lv_color_hex(brewingUnitTempGradient.getRgb(brewingUnitTemperatureAvgDegree)), LV_PART_INDICATOR | LV_STATE_DEFAULT );
+
+    float waterLevelRatio = (float)(config.waterLevelMin - waterLevel) / (config.waterLevelMin - config.waterLevelMax);
+    waterLevelRatio = max(0.0f, min(1.0f, waterLevelRatio));
+    lv_arc_set_angles(waterLevelArc, 90 - (waterLevelRatio * 90), 90);
+    lv_obj_set_style_arc_color(waterLevelArc, lv_color_hex(waterLevelGradient.getRgb(waterLevelRatio)), LV_PART_INDICATOR | LV_STATE_DEFAULT );
+
   }
 }
 
@@ -1131,6 +1165,16 @@ void loop()
           flowCounterInfusionStart = currentFlowCounter;
         }
     }
+  }
+
+  if (waterLevelSensor.isRangeComplete())
+  {
+    uint8_t waterLevelSample = waterLevelSensor.readRangeResult();
+    if (waterLevelAverage.addSample(waterLevelSample))
+    {
+      waterLevel = waterLevelAverage.average(1);
+    }
+    waterLevelSensor.startRange();
   }
 
   if (eTaskGetState(lvglUpdateTask) == eTaskState::eSuspended)
