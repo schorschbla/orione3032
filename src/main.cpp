@@ -18,9 +18,7 @@
 #include "display.h"
 #include "MedianAverage.h"
 
-//lv_font_conv  --no-compress --no-prefilter --bpp 4 --size 20 --font Montserrat-Medium.ttf -r 0x20-0x7f,0xdf,0xe4,0xf6,0xfc,0xc4,0xd6,0xdc,0xb0  --font FontAwesome5-Solid+Brands+Regular.woff -r 61441,61448,61451,61452,61452,61453,61457,61459,61461,61465,61468,61473,61478,61479,61480,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61587,61589,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61787,61931,62016,62017,62018,62019,62020,62087,62099,62212,62189,62810,63426,63650,62033 --format lvgl -o lv_font_montserrat_20.c --force-fast-kern-format
-//lv_font_conv  --no-compress --no-prefilter --bpp 4 --size 36 --font Montserrat-Medium.ttf -r 0x20-0x7f,0xdf,0xe4,0xf6,0xfc,0xc4,0xd6,0xdc,0xb0  --font FontAwesome5-Solid+Brands+Regular.woff -r 61441,61448,61451,61452,61452,61453,61457,61459,61461,61465,61468,61473,61478,61479,61480,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61587,61589,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61787,61931,62016,62017,62018,62019,62020,62087,62099,62212,62189,62810,63426,63650,62033 --format lvgl -o lv_font_montserrat_36.c --force-fast-kern-format
-//lv_font_conv  --no-compress --no-prefilter --bpp 4 --size 48 --font Montserrat-Medium.ttf -r 0x20-0x7f,0xdf,0xe4,0xf6,0xfc,0xc4,0xd6,0xdc,0xb0  --font FontAwesome5-Solid+Brands+Regular.woff -r 61441,61448,61451,61452,61452,61453,61457,61459,61461,61465,61468,61473,61478,61479,61480,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61587,61589,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61787,61931,62016,62017,62018,62019,62020,62087,62099,62212,62189,62810,63426,63650,62033 --format lvgl -o lv_font_montserrat_48.c --force-fast-kern-format
+//lv_font_conv  --no-compress --no-prefilter --bpp 4 --size 20 --font Montserrat-Medium.ttf -r 0x20-0x7f,0xdf,0xe4,0xf6,0xfc,0xc4,0xd6,0xdc,0xb0  --font FontAwesome5-Solid+Brands+Regular.woff -r 61441,61448,61451,61452,61452,61453,61457,61459,61461,61465,61468,61473,61478,61479,61480,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61587,61589,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61787,61931,62016,62017,62018,62019,62020,62087,62099,62212,62189,62810,63426,63650,62033,61507,62919 --format lvgl -o lv_font_montserrat_20.c --force-fast-kern-format
 
 #define PID_P                             2.7
 #define PID_I                             0.05
@@ -71,12 +69,18 @@
 
 #define READY_NOTIFICATION_INTERVAL 60000
 
-unsigned int const heatGradient[] = { 0x7f7f7f, 0x0000ff, 0x00a591, 0x00ff00, 0xffff00, 0xff0000 };
+#define BLUE 0x1e64ae
+#define TURQUOISE 0x2c9699
+#define GREEN 0x8eb333
+#define YELLOW 0xf3ce2f
+#define RED 0xd42223
+
+unsigned int const heatGradient[] = { 0x7f7f7f, BLUE, TURQUOISE, GREEN, YELLOW, RED };
 static float pressureHeatWeights[] = { 1.0f, 5.0f, 2.0f, 2.0f, 1.0f };
 static float temperatureHeatWeights[] = { 5.0f, 0.0f, 2.0f, 2.0f, 3.0f };
 static float brewingUnitTemperatureHeatWeights[] = { 5.0f, 0.0f, 5.0f, 60.0f, 15.0f };
 
-unsigned int const waterLevelGradientColors[] = {  0xff0000, 0xffff00,  0x00ff00 };
+unsigned int const waterLevelGradientColors[] = {  RED, YELLOW,  GREEN };
 static float waterLevelHeatWeights[] = { 0.2f, 0.8f };
 
 int ReadXdb401PressureValue(int *result);
@@ -155,6 +159,7 @@ lv_obj_t *brewingUnitTemperatureLabel;
 
 lv_obj_t *waterLevelArc;
 lv_obj_t *waterLevelLabel;
+lv_obj_t *waterLevelSymbol;
 
 lv_obj_t *infuseScreen;
 lv_obj_t *infusePressureArc;
@@ -215,9 +220,16 @@ void initStandbyUi()
   lv_obj_set_style_text_align(brewingUnitTemperatureLabel, LV_TEXT_ALIGN_LEFT, 0);
   lv_obj_align(brewingUnitTemperatureLabel, LV_ALIGN_CENTER, 0, -23);
 
+  waterLevelSymbol = lv_label_create(standbyScreen);
+  lv_obj_set_style_text_font(waterLevelSymbol, &lv_font_montserrat_20, 0);
+  lv_obj_set_width(waterLevelSymbol, 160);
+  lv_obj_set_style_text_align(waterLevelSymbol, LV_TEXT_ALIGN_RIGHT, 0);
+  lv_obj_align(waterLevelSymbol, LV_ALIGN_CENTER, 0, -23);
+  lv_label_set_text_fmt(waterLevelSymbol, "\xEF\x81\x83");
+
   waterLevelLabel = lv_label_create(standbyScreen);
   lv_obj_set_style_text_font(waterLevelLabel, &lv_font_montserrat_32, 0);
-  lv_obj_set_width(waterLevelLabel, 160);
+  lv_obj_set_width(waterLevelLabel, 126);
   lv_obj_set_style_text_align(waterLevelLabel, LV_TEXT_ALIGN_RIGHT, 0);
   lv_obj_align(waterLevelLabel, LV_ALIGN_CENTER, 0, -23);
 }
@@ -705,15 +717,7 @@ void updateUi()
     lv_arc_set_angles(standbyTemperatureArc, 0, temperatureAvgDegree / TEMPERATURE_SAFETY_GUARD * 250);
     lv_obj_set_style_arc_color(standbyTemperatureArc, lv_color_hex(tempGradient.getRgb(temperatureAvgDegree)), LV_PART_INDICATOR | LV_STATE_DEFAULT );
 
-    int brewingUnitTemperatureAvgDegreeInt = (int) brewingUnitTemperatureAvgDegree;
-    if (brewingUnitTemperatureAvgDegreeInt >= 100)
-    {
-      lv_label_set_text_fmt(brewingUnitTemperatureLabel, "%d°", brewingUnitTemperatureAvgDegreeInt);
-    }
-    else
-    {
-      lv_label_set_text_fmt(brewingUnitTemperatureLabel, "%.1f°", brewingUnitTemperatureAvgDegree);
-    }
+    lv_label_set_text_fmt(brewingUnitTemperatureLabel, "%d°", (int)brewingUnitTemperatureAvgDegree);
 
     lv_arc_set_angles(brewingUnitTemperatureArc, 0, brewingUnitTemperatureAvgDegree / 80 * 150);
     lv_obj_set_style_arc_color(brewingUnitTemperatureArc, lv_color_hex(brewingUnitTempGradient.getRgb(brewingUnitTemperatureAvgDegree)), LV_PART_INDICATOR | LV_STATE_DEFAULT );
@@ -723,25 +727,30 @@ void updateUi()
       float waterLevelRatio = (float)(config.waterLevelMin - waterLevel) / (config.waterLevelMin - config.waterLevelMax);
       waterLevelRatio = max(0.0f, min(1.0f, waterLevelRatio));
       bool warn = waterLevelRatio < 0.15;
-      bool blink = warn && cycle % 20 < 10;
+      bool blink = warn && cycle % 16 < 8;
 
-      lv_obj_clear_flag(waterLevelArc, LV_OBJ_FLAG_HIDDEN);
       lv_obj_clear_flag(waterLevelLabel, LV_OBJ_FLAG_HIDDEN);
-
-      lv_color_t color =  lv_color_hex(waterLevelGradient.getRgb(waterLevelRatio));
+      lv_obj_clear_flag(waterLevelArc, LV_OBJ_FLAG_HIDDEN);
       if (blink)
       {
-        color = lv_color_change_lightness(color, 64);
+        lv_obj_add_flag(waterLevelSymbol, LV_OBJ_FLAG_HIDDEN);
       }
+      else
+      {
+        lv_obj_clear_flag(waterLevelSymbol, LV_OBJ_FLAG_HIDDEN);
+      }
+
+      lv_color_t color = lv_color_hex(waterLevelGradient.getRgb(waterLevelRatio));
 
       lv_arc_set_angles(waterLevelArc, 90 - (waterLevelRatio * 90), 90);
       lv_obj_set_style_arc_color(waterLevelArc, color, LV_PART_INDICATOR | LV_STATE_DEFAULT );
       
-      lv_label_set_text_fmt(waterLevelLabel, "%d%%", (int)(waterLevelRatio*100));
-      lv_obj_set_style_text_color(waterLevelLabel, warn ? color : lv_color_white(), 0);
+      int waterLevelPercent = (int)(waterLevelRatio*100);
+      lv_label_set_text_fmt(waterLevelLabel, "%d%%", waterLevelPercent);
     }
     else
     {
+      lv_obj_add_flag(waterLevelSymbol, LV_OBJ_FLAG_HIDDEN);
       lv_obj_add_flag(waterLevelArc, LV_OBJ_FLAG_HIDDEN);
       lv_obj_add_flag(waterLevelLabel, LV_OBJ_FLAG_HIDDEN);
     }
