@@ -17,6 +17,7 @@
 #include "power.h"
 #include "display.h"
 #include "MedianAverage.h"
+#include "AntiFlappingFilter.h"
 
 //lv_font_conv  --no-compress --no-prefilter --bpp 4 --size 20 --font Montserrat-Medium.ttf -r 0x20-0x7f,0xdf,0xe4,0xf6,0xfc,0xc4,0xd6,0xdc,0xb0  --font FontAwesome5-Solid+Brands+Regular.woff -r 61441,61448,61451,61452,61452,61453,61457,61459,61461,61465,61468,61473,61478,61479,61480,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61587,61589,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61787,61931,62016,62017,62018,62019,62020,62087,62099,62212,62189,62810,63426,63650,62033,61507,62919 --format lvgl -o lv_font_montserrat_20.c --force-fast-kern-format
 
@@ -106,6 +107,10 @@ Gradient pressureGradient(heatGradient, pressureHeatWeights, 6);
 Gradient waterLevelGradient(waterLevelGradientColors, waterLevelHeatWeights, 2);
 
 hw_timer_t *heatingTimer = NULL;
+
+AntiFlappingFilter<int> temperatureFlappingFilter(5000);
+AntiFlappingFilter<int> brewingUnitTemperatureFlappingFilter(5000);
+AntiFlappingFilter<int> waterLevelFlappingFilter(30000);
 
 std::vector<fs::File> splashFiles;
 
@@ -712,12 +717,21 @@ void updateUi()
       lv_scr_load(standbyScreen);
     }
 
-    lv_label_set_text_fmt(standbyTemperatureLabel, "%.1f°", temperatureAvgDegree);
+    int filteredTemperature = temperatureFlappingFilter.apply((int)(temperatureAvgDegree * 10));
+    if (filteredTemperature < 1000)
+    {
+      lv_label_set_text_fmt(standbyTemperatureLabel, "%d.%d°", filteredTemperature / 10, filteredTemperature % 10);
+    }
+    else
+    {
+      lv_label_set_text_fmt(standbyTemperatureLabel, "%d°", filteredTemperature / 10);
+    }
 
     lv_arc_set_angles(standbyTemperatureArc, 0, temperatureAvgDegree / TEMPERATURE_SAFETY_GUARD * 250);
     lv_obj_set_style_arc_color(standbyTemperatureArc, lv_color_hex(tempGradient.getRgb(temperatureAvgDegree)), LV_PART_INDICATOR | LV_STATE_DEFAULT );
 
-    lv_label_set_text_fmt(brewingUnitTemperatureLabel, "%d°", (int)brewingUnitTemperatureAvgDegree);
+    int filteredBrewingUnitTemperature = brewingUnitTemperatureFlappingFilter.apply((int)brewingUnitTemperatureAvgDegree);
+    lv_label_set_text_fmt(brewingUnitTemperatureLabel, "%d°", filteredBrewingUnitTemperature);
 
     lv_arc_set_angles(brewingUnitTemperatureArc, 0, brewingUnitTemperatureAvgDegree / 80 * 150);
     lv_obj_set_style_arc_color(brewingUnitTemperatureArc, lv_color_hex(brewingUnitTempGradient.getRgb(brewingUnitTemperatureAvgDegree)), LV_PART_INDICATOR | LV_STATE_DEFAULT );
@@ -745,8 +759,8 @@ void updateUi()
       lv_arc_set_angles(waterLevelArc, 90 - (waterLevelRatio * 90), 90);
       lv_obj_set_style_arc_color(waterLevelArc, color, LV_PART_INDICATOR | LV_STATE_DEFAULT );
       
-      int waterLevelPercent = (int)(waterLevelRatio*100);
-      lv_label_set_text_fmt(waterLevelLabel, "%d%%", waterLevelPercent);
+      int filteredWaterLevelPercent = waterLevelFlappingFilter.apply((int)(waterLevelRatio*100));
+      lv_label_set_text_fmt(waterLevelLabel, "%d%%", filteredWaterLevelPercent);
     }
     else
     {
