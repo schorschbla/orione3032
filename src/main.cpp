@@ -108,9 +108,9 @@ Gradient waterLevelGradient(waterLevelGradientColors, waterLevelHeatWeights, 2);
 
 hw_timer_t *heatingTimer = NULL;
 
-AntiFlappingFilter<int> temperatureFlappingFilter(5000);
-AntiFlappingFilter<int> brewingUnitTemperatureFlappingFilter(5000);
-AntiFlappingFilter<int> waterLevelFlappingFilter(30000);
+AntiFlappingFilter<int, 3> temperatureFlappingFilter(5000);
+AntiFlappingFilter<int, 3> brewingUnitTemperatureFlappingFilter(5000);
+AntiFlappingFilter<int, 3> waterLevelFlappingFilter(30000);
 
 std::vector<fs::File> splashFiles;
 

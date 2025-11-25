@@ -2,33 +2,35 @@
 
 #include <Arduino.h>
 
-template<typename T> class AntiFlappingFilter
+template<typename T, unsigned int S> class AntiFlappingFilter
 {
 public:
-  AntiFlappingFilter(unsigned int duration) : duration(duration), lastChange(0) {}
+  AntiFlappingFilter(unsigned int deadline) : deadline(deadline), pos(0) {}
 
   T apply(T value)
   {
-    if (value != current)
+    unsigned int time = millis();
+    for (int i = 0; i < S; ++i)
     {
-      if (value == previous)
+      if (records[i].value == value && time - records[i].time < deadline)
       {
-        unsigned int time = millis();
-        if (time - lastChange < duration)
-        {
-          return current;
-        }
-        lastChange = time;
+        return records[pos].value;
       }
-      previous = current;
-      current = value;
     }
-    return current;
+    pos = (pos + 1) % S;
+    records[pos].value = value;
+    records[pos].time = time;
+    return value;
   }
 
 private:
-  T current;
-  T previous;
-  unsigned int duration;
-  unsigned int lastChange;
+  typedef struct 
+  {
+    T value;
+    unsigned int time;
+  } Record;
+
+  Record records[S];
+  unsigned int pos;
+  unsigned int deadline;
 };
