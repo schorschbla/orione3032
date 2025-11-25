@@ -2,10 +2,10 @@
 
 #include <Arduino.h>
 
-template<typename T, unsigned int S> class AntiFlappingFilter
+template<typename T, unsigned int S> class JitterFilter
 {
 public:
-  AntiFlappingFilter(unsigned int deadline) : deadline(deadline), pos(0) {}
+  JitterFilter(unsigned int deadline) : deadline(deadline), pos(0) {}
 
   T apply(T value)
   {
