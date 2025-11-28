@@ -8,7 +8,7 @@
 | 12 | GC9A01 SPI CS | |
 | 13 | GC9A01 RST | |
 | 14 | GC9A01 SPI MOSI | |
-| 15 | Flowmeter | |
+| 15 | Flowmeter kalt/eingehend | |
 | 16 | Triac Ventil | |
 | 17 | Triac Pumpe | |
 | 18 | AC Zerocross | |
@@ -23,6 +23,6 @@
 | 33 | MAX31865 SPI SCLK | |
 | 34 | Brühschalter | Pulldown extern 100kOhm |
 | 35 | MAX31865 SPI MISO | |
-| 36 | _frei_ | |
-| 39 | _frei_ | |
+| 36 | Flowmeter heiß/ausgehend | Pulldown extern 100kOhm |
+| 39 | Heißwasserschalter | Pulldown extern 100kOhm |
 
