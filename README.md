@@ -12,6 +12,7 @@
 | 16 | Triac Ventil | |
 | 17 | Triac Pumpe | |
 | 18 | AC Zerocross | |
+| 19 | _Frei_ | |
 | 21 | I2C SDA | |
 | 22 | I2C SCL | |
 | 23 | Dampfschalter | Pulldown extern 100kOhm |
@@ -22,4 +23,6 @@
 | 33 | MAX31865 SPI SCLK | |
 | 34 | Brühschalter | Pulldown extern 100kOhm |
 | 35 | MAX31865 SPI MISO | |
+| 36 | _frei_ | |
+| 39 | _frei_ | |
 

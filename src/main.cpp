@@ -22,8 +22,8 @@
 //lv_font_conv  --no-compress --no-prefilter --bpp 4 --size 20 --font Montserrat-Medium.ttf -r 0x20-0x7f,0xdf,0xe4,0xf6,0xfc,0xc4,0xd6,0xdc,0xb0  --font FontAwesome5-Solid+Brands+Regular.woff -r 61441,61448,61451,61452,61452,61453,61457,61459,61461,61465,61468,61473,61478,61479,61480,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61587,61589,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61787,61931,62016,62017,62018,62019,62020,62087,62099,62212,62189,62810,63426,63650,62033,61507,62919 --format lvgl -o lv_font_montserrat_20.c --force-fast-kern-format
 
 #define PID_P                             2.7
-#define PID_I                             0.05
-#define PID_D                             30
+#define PID_I                             0.06
+#define PID_D                             0
 
 #define PID_MAX_OUTPUT                    100.0
 
@@ -43,7 +43,6 @@
 #define PID_D_STEAM                       145
 
 #define PUMP_RAMPUP_TIME                  4000
-#define PUMP_MIN_POWER                    0.6
 
 #define XDB401_MAX_BAR                    20
 #define XDB401_READ_INTERVAL_CYCLES       1
@@ -110,7 +109,7 @@ hw_timer_t *heatingTimer = NULL;
 
 JitterFilter<int, 3> temperatureFlappingFilter(5000);
 JitterFilter<int, 3> brewingUnitTemperatureFlappingFilter(5000);
-JitterFilter<int, 3> waterLevelFlappingFilter(30000);
+JitterFilter<int, 3> waterLevelFlappingFilter(300000);
 
 std::vector<fs::File> splashFiles;
 
@@ -377,6 +376,7 @@ void initPairingUi(char *btDeviceName)
 
 bool infusing = false;
 bool steam = false;
+bool hotWater = false;
 
 uint32_t lastSplashDisplayTime = 0;
 uint32_t currentSplash = 0;
@@ -396,7 +396,7 @@ void lvglUpdateTaskFunc(void *parameter)
     vTaskSuspend(NULL);
     unsigned long start = millis();
 
-    bool displaySplash = !infusing && !steam && !splashFiles.empty();
+    bool displaySplash = !infusing && !steam && !hotWater && !splashFiles.empty();
     if (!displaySplash)
     {
       display.clearLvglExcludedArea();
@@ -451,9 +451,11 @@ struct Qm3032Config
   float volumeBasedHeatingFactor;
   uint16_t waterLevelMax;
   uint16_t waterLevelMin;
+  float preinfusionPumpPower;
+  float hotWaterPumpPower;
 };
 
-struct Qm3032Config defaultConfig = { 1, 90.0, 20.0, 0.73, 8.0, 12000, 2.0, 125.0, 2, 55.0, { 0 }, 1.0, 20, 240 };
+struct Qm3032Config defaultConfig = { 1, 90.0, 20.0, 0.73, 8.0, 12000, 2.0, 125.0, 2, 55.0, { 0 }, 1.0, 20, 240, 0.6, 0.45 };
 
 bool readConfig(struct Qm3032Config &config)
 {
@@ -550,8 +552,9 @@ void setup()
 {
   Serial.begin(9600);
 
-  pinMode(PIN_INFUSE_SWITCH, INPUT_PULLDOWN);
-  pinMode(PIN_STEAM_SWITCH, INPUT_PULLDOWN);
+  pinMode(PIN_INFUSE_SWITCH, INPUT);
+  pinMode(PIN_STEAM_SWITCH, INPUT);
+  pinMode(PIN_HOTWATER_SWITCH, INPUT);
 
   pinMode(PIN_GC9A01_BL, OUTPUT);
 
@@ -562,6 +565,7 @@ void setup()
 
   infusing = digitalRead(PIN_INFUSE_SWITCH);
   steam = digitalRead(PIN_STEAM_SWITCH);
+  hotWater = digitalRead(PIN_HOTWATER_SWITCH);
 
   SPIFFS.begin();
 
@@ -650,6 +654,7 @@ unsigned int infusionHeatingCyclesIs;
 float infusionConstantHeatingPower;
 
 bool preinfusionPressureReached;
+bool preinfusionPassed;
 
 uint8_t waterLevel = 0;
 
@@ -657,7 +662,7 @@ void updateUi()
 {
   float temperatureAvgDegree = temperateAvg.get();
 
-  if (infusing || steam)
+  if (infusing || steam || hotWater)
   {
     int tempOffsetDialStart;
     int tempOffsetDialAmount;
@@ -787,8 +792,8 @@ void processBt()
       
       if (!strcmp("get config", buf))
       {
-        bt.printf("temp %f waterTemp %f pumpPower %f steamTemp %f steamWaterSupplyCycles %d preinfusionVolume %f preinfusionPressure %f preinfusionDuration %d brewingUnitTemp %f volumeBasedHeatingFactor %f\n", 
-          config.temperature, config.waterTemperature, config.pumpPower, config.steamTemperature, config.steamWaterSupplyCycles, config.preinfusionVolume, config.preinfusionPressure, config.preinfusionDuration, config.brewingUnitTemperature, config.volumeBasedHeatingFactor);
+        bt.printf("temp\t%f\nwaterTemp\t%f\npumpPower\t%f\npreinfusionPumpPower\t%f\nhotWaterPumpPower\t%f\nsteamTemp\t%f\nsteamWaterSupplyCycles\t%d\n preinfusionVolume\t%f\npreinfusionPressure\t%f\npreinfusionDuration\t%d\nbrewingUnitTemp\t%f\nvolumeBasedHeatingFactor\t%f\n", 
+          config.temperature, config.waterTemperature, config.pumpPower, config.preinfusionPumpPower, config.hotWaterPumpPower, config.steamTemperature, config.steamWaterSupplyCycles, config.preinfusionVolume, config.preinfusionPressure, config.preinfusionDuration, config.brewingUnitTemperature, config.volumeBasedHeatingFactor);
       }
       else if (!strcmp("get waterlevel", buf))
       {
@@ -813,16 +818,40 @@ void processBt()
         }
         else if (sscanf(buf, "set pumpPower %f", &value) > 0)
         {
-          if (value >= PUMP_MIN_POWER && value <= 1.0)
+          if (value >= config.preinfusionPumpPower && value <= 1.0)
           {
             config.pumpPower = value;
             writeConfig(config);
           }
           else
           {
-            bt.printf("error range %f 1.0\n", PUMP_MIN_POWER);
+            bt.printf("error range %f 1.0\n", config.preinfusionPumpPower);
           }
         }
+        else if (sscanf(buf, "set preinfusionPumpPower %f", &value) > 0)
+        {
+          if (value >= 0.3 && value <= 1.0)
+          {
+            config.preinfusionPumpPower = value;
+            writeConfig(config);
+          }
+          else
+          {
+            bt.printf("error range 0.3 1.0\n");
+          }
+        }        
+        else if (sscanf(buf, "set hotWaterPumpPower %f", &value) > 0)
+        {
+          if (value >= 0.3 && value <= 1.0)
+          {
+            config.hotWaterPumpPower = value;
+            writeConfig(config);
+          }
+          else
+          {
+            bt.printf("error range 0.3 1.0\n");
+          }
+        }        
         else if (sscanf(buf, "set steamWaterSupplyCycles %d", &intValue) > 0)
         {
           if (intValue >= 1 && value <= STEAM_PULSATOR_INTERVAL_CYCLES)
@@ -968,6 +997,12 @@ void loopPairing()
     confirm = true;
   }    
 
+  if (hotWater != digitalRead(PIN_HOTWATER_SWITCH))
+  {
+    hotWater = !hotWater;
+    confirm = true;
+  }    
+
   if (pairingCode != 0)
   {
     if (pairingState == PAIRING_STATE_WAITING)
@@ -1051,7 +1086,7 @@ void loop()
 
   flowCounter += cycleFlowCount;
 
-  if (!steam && digitalRead(PIN_INFUSE_SWITCH) != infusing)
+  if (!steam && !hotWater && digitalRead(PIN_INFUSE_SWITCH) != infusing)
   {
     infusing = !infusing;
     if (infusing)
@@ -1065,6 +1100,7 @@ void loop()
       infusionConstantHeatingPower = abs(temperatureIs - config.temperature) < TEMPERATURE_ARRIVAL_THRESHOLD ? pidAvg.get() : 0.0;
 
       preinfusionPressureReached = false;
+      preinfusionPassed = false;
    }
     else
     {
@@ -1081,7 +1117,7 @@ void loop()
     }
   }
 
-  if (!infusing && digitalRead(PIN_STEAM_SWITCH) != steam)
+  if (!infusing && !hotWater && digitalRead(PIN_STEAM_SWITCH) != steam)
   {
     steam = !steam;
     if (steam)
@@ -1101,20 +1137,46 @@ void loop()
     }
   }
 
+  if (!infusing && !steam && digitalRead(PIN_HOTWATER_SWITCH) != hotWater)
+  {
+    hotWater = !hotWater;
+    if (hotWater)
+    {
+      digitalWrite(PIN_VALVE_AC, HIGH);
+      flowCounterInfusionStart = flowCounter;
+      infusionHeatingCyclesIs = 0;
+
+      infusionConstantHeatingPower = abs(temperatureIs - config.temperature) < TEMPERATURE_ARRIVAL_THRESHOLD ? pidAvg.get() : 0.0;
+    }
+    else
+    {
+      setTemperature(config.temperature);
+      pumpSetLevel(0);
+      setPidTunings(PID_P, 0, 0);
+      temperatureArrival = false;
+      digitalWrite(PIN_VALVE_AC, LOW);
+    }
+  }
+
   if (infusing)
   {
       float pumpValue;
       unsigned int infusionTime = windowStart - infuseStart;
       if (infusionTime < config.preinfusionDuration)
       {
-        pumpValue = preinfusionPressureReached ? 0.0 : PUMP_MIN_POWER;
+        pumpValue = preinfusionPressureReached ? 0.0 : config.preinfusionPumpPower;
       }
       else
       {
+        if (!preinfusionPassed)
+        {
+          preinfusionPassed = true;
+          //flowCounterInfusionStart = flowCounter;
+        }
         infusionTime -= config.preinfusionDuration;
         if (infusionTime < PUMP_RAMPUP_TIME)
         {
-          pumpValue = PUMP_MIN_POWER + (float)(infusionTime) / PUMP_RAMPUP_TIME * (config.pumpPower - PUMP_MIN_POWER);
+          pumpValue = config.preinfusionPumpPower + (float)(infusionTime) / PUMP_RAMPUP_TIME * (config.pumpPower - config.preinfusionPumpPower);
         }
         else
         {
@@ -1128,12 +1190,16 @@ void loop()
   {
       if (cycle % STEAM_PULSATOR_INTERVAL_CYCLES == 0 && temperatureIs > STEAM_WATER_SUPPLY_MIN_TEMPERATURE)
       {
-         pumpSetLevel(PUMP_MIN_POWER * UINT8_MAX);
+         pumpSetLevel(config.preinfusionPumpPower * UINT8_MAX);
       }
       else if (cycle % STEAM_PULSATOR_INTERVAL_CYCLES == config.steamWaterSupplyCycles)
       {
          pumpSetLevel(0);
       }
+  }
+  else if (hotWater)
+  {
+      pumpSetLevel(config.hotWaterPumpPower * UINT8_MAX);
   }
 
   if (valveDeadline != 0 && windowStart > valveDeadline) 
@@ -1149,7 +1215,7 @@ void loop()
 
     temperateAvg.push(temperatureIs);
 
-    if (!steam && !infusing)
+    if (!steam && !infusing && !hotWater)
     {
       float delta = config.temperature - temperateAvg.get();
       bool arrival = abs(delta) < TEMPERATURE_ARRIVAL_THRESHOLD;
@@ -1175,7 +1241,7 @@ void loop()
 
   if (cycle % PID_INTERVAL_CYCLES == 0)
   {
-    if (infusing)
+    if (infusing || hotWater)
     {
       if (infusionConstantHeatingPower > 0)
       {
@@ -1227,7 +1293,7 @@ void loop()
     flowAvg.push(flow);
     lastFlowCounter = currentFlowCounter;
 
-    if (infusing)
+    if (infusing || hotWater)
     {
         if (temperateAvg.get() < 100) 
         {
