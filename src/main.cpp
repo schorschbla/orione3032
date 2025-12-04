@@ -29,8 +29,6 @@
 
 #define TEMPERATURE_SAFETY_GUARD                    130
 
-#define STEAM_WATER_SUPPLY_MIN_TEMPERATURE    105
-
 #define TEMPERATURE_MAX                   98
 
 #define WARMUP_TEMPERATURE_THRESHOLD      6
@@ -43,7 +41,8 @@
 #define CYCLE_LENGTH                      40
 #define MAX31856_READ_INTERVAL_CYCLES     2
 
-#define STEAM_PULSATOR_INTERVAL_CYCLES    32
+#define STEAM_WATER_SUPPLY_MIN_TEMPERATURE    100
+#define STEAM_WATER_SUPPLY_INTERVAL_CYCLES    32
 
 #define FLOW_PROCESS_INTERVAL_CYCLES      1
 #define FLOW_ML_PER_TICK                  0.1
@@ -57,8 +56,6 @@
 
 #define HEATING_ENERGY_PER_ML_AND_KELVIN_WATTSECONDS   5.76
 #define HEATING_OUTPUT_WATTS  1000
-
-#define PREINFUSION_LAG_ML  0.4
 
 #define READY_NOTIFICATION_INTERVAL 60000
 
@@ -840,14 +837,14 @@ void processBt()
         }        
         else if (sscanf(buf, "set steamWaterSupplyCycles %d", &intValue) > 0)
         {
-          if (intValue >= 1 && value <= STEAM_PULSATOR_INTERVAL_CYCLES)
+          if (intValue >= 1 && value <= STEAM_WATER_SUPPLY_INTERVAL_CYCLES)
           {
             config.steamWaterSupplyCycles = intValue;
             writeConfig(config);
           }
           else
           {
-            bt.printf("error range 1 %d\n", STEAM_PULSATOR_INTERVAL_CYCLES);
+            bt.printf("error range 1 %d\n", STEAM_WATER_SUPPLY_INTERVAL_CYCLES);
           }
         }
         else if (sscanf(buf, "set steamTemp %f", &value) > 0)
@@ -1200,11 +1197,11 @@ void loop()
   }
   else if (steam)
   {
-      if (cycle % STEAM_PULSATOR_INTERVAL_CYCLES == 0 && temperatureIs > STEAM_WATER_SUPPLY_MIN_TEMPERATURE)
+      if (cycle % STEAM_WATER_SUPPLY_INTERVAL_CYCLES == 0 && temperatureIs > STEAM_WATER_SUPPLY_MIN_TEMPERATURE)
       {
          pumpSetLevel(config.preinfusionPumpPower * UINT8_MAX);
       }
-      else if (cycle % STEAM_PULSATOR_INTERVAL_CYCLES == config.steamWaterSupplyCycles)
+      else if (cycle % STEAM_WATER_SUPPLY_INTERVAL_CYCLES == config.steamWaterSupplyCycles)
       {
          pumpSetLevel(0);
       }
