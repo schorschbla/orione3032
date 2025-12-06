@@ -1194,19 +1194,22 @@ void loop()
   {
       float pumpValue;
       unsigned int infusionTime = millis() - infuseStart;
-      if (infusionTime < config.preinfusionDuration)
+      if (!preinfusionPassed)
       {
-        pumpValue = preinfusionPressureReached ? 0.0 : config.preinfusionPumpPower;
-      }
-      else
-      {
-        if (!preinfusionPassed)
+        if (infusionTime < config.preinfusionDuration)
+        {
+          pumpValue = preinfusionPressureReached ? 0.0 : config.preinfusionPumpPower;
+        }
+        else
         {
           preinfusionPassed = true;
           flowCounterInfusionStart = flowCounter;
           infusionHeatingCyclesIs = 0;
-          infusionTime = millis();
+          infuseStart = millis();
         }
+      }
+      else
+      {
         if ((flowCounter - flowCounterInfusionStart) * FLOW_ML_PER_TICK > config.maxInfusionVolume)
         {
           pumpValue = 0;
