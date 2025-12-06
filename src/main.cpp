@@ -1285,8 +1285,6 @@ void loop()
         if (infusing && !preinfusionPressureReached && pressureAvg.get() > config.preinfusionPressure)
         {
           preinfusionPressureReached = true;
-          flowCounterInfusionStart = flowCounter;
-          infusionHeatingCyclesIs = 0;
         }
     }
   }
