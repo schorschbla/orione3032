@@ -101,6 +101,8 @@ JitterFilter<int, 3> temperatureFlappingFilter(5000);
 JitterFilter<int, 3> brewingUnitTemperatureFlappingFilter(5000);
 JitterFilter<int, 3> waterLevelFlappingFilter(300000);
 
+bool waterLevelSensorPresent;
+
 std::vector<fs::File> splashFiles;
 
 void getSplashImages()
@@ -548,6 +550,11 @@ void getDefaultBtDeviceName(BluetoothSerial &bt, char* out, size_t length)
   }
 }
 
+bool probeDevice(TwoWire &wire, uint8_t address) {
+  wire.beginTransmission(address);
+  return wire.endTransmission() == 0;
+}
+
 void setup()
 {
   Serial.begin(9600);
@@ -606,9 +613,14 @@ void setup()
 
   Wire.begin();
 
-  waterLevelSensor.begin();
-  waterLevelSensor.configSensor(Adafruit_VL53L0X::VL53L0X_Sense_config_t::VL53L0X_SENSE_HIGH_ACCURACY);
-  waterLevelSensor.startRange();
+  waterLevelSensorPresent = probeDevice(Wire, VL53L0X_I2C_ADDR);
+
+  if (waterLevelSensorPresent) 
+  {
+    waterLevelSensor.begin();
+    waterLevelSensor.configSensor(Adafruit_VL53L0X::VL53L0X_Sense_config_t::VL53L0X_SENSE_HIGH_ACCURACY);
+    waterLevelSensor.startRange();
+  }
 
   hspi.begin(PIN_MAX31865_CLOCK, PIN_MAX31865_MISO, PIN_MAX31865_MOSI);
   
@@ -1316,14 +1328,17 @@ void loop()
     }
   }
 
-  if (waterLevelSensor.isRangeComplete())
+  if (waterLevelSensorPresent) 
   {
-    uint8_t waterLevelSample = waterLevelSensor.readRangeResult();
-    if (waterLevelAverage.addSample(waterLevelSample))
+    if (waterLevelSensor.isRangeComplete())
     {
-      waterLevel = waterLevelAverage.average(1);
+      uint8_t waterLevelSample = waterLevelSensor.readRangeResult();
+      if (waterLevelAverage.addSample(waterLevelSample))
+      {
+        waterLevel = waterLevelAverage.average(1);
+      }
+      waterLevelSensor.startRange();
     }
-    waterLevelSensor.startRange();
   }
 
   if (!infusing && !steam)
