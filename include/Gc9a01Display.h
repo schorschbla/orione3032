@@ -2,10 +2,10 @@
 #include <LovyanGFX.hpp>
 #include <lvgl.h>
 
-class Display : public lgfx::LGFX_Device
+class Gc9a01Display : public lgfx::LGFX_Device
 {
 public:
-  Display(uint32_t freqWrite, int16_t pinSclk, int16_t pinMosi, int16_t pinDc, int16_t pinCs, int16_t pinRst);
+  Gc9a01Display(uint32_t freqWrite, int16_t pinSclk, int16_t pinMosi, int16_t pinDc, int16_t pinCs, int16_t pinRst);
 
   lv_disp_drv_t &lvglDriver();
 
@@ -28,5 +28,5 @@ private:
   lv_area_t excluded;
 
   void flush(const lv_area_t *area, lv_color_t *color_p);
-  static void flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p);
+  friend void flushDisp(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p);
 };

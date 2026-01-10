@@ -1,6 +1,11 @@
-#include "display.h"
+#include "Gc9a01Display.h"
 
-Display::Display(uint32_t freqWrite, int16_t pinSclk, int16_t pinMosi, int16_t pinDc, int16_t pinCs, int16_t pinRst) : excluded({0, 0, 0, 0})
+void flushDisp(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p)
+{
+    static_cast<Gc9a01Display *>(disp->user_data)->flush(area, color_p);
+}
+
+Gc9a01Display::Gc9a01Display(uint32_t freqWrite, int16_t pinSclk, int16_t pinMosi, int16_t pinDc, int16_t pinCs, int16_t pinRst) : excluded({0, 0, 0, 0})
 {
     lgfx::Bus_SPI::config_t busConfig = bus.config();
     busConfig.freq_write = freqWrite;
@@ -24,17 +29,17 @@ Display::Display(uint32_t freqWrite, int16_t pinSclk, int16_t pinMosi, int16_t p
     lv_disp_drv_init(&disp_drv);
     disp_drv.hor_res = 240;
     disp_drv.ver_res = 240;
-    disp_drv.flush_cb = flush;
+    disp_drv.flush_cb = &flushDisp;
     disp_drv.draw_buf = &draw_buf;
     disp_drv.user_data = this;
 }
 
-lv_disp_drv_t &Display::lvglDriver() 
+lv_disp_drv_t &Gc9a01Display::lvglDriver() 
 {
     return disp_drv;
 }
 
-void Display::flush(const lv_area_t *area, lv_color_t *color_p)
+void Gc9a01Display::flush(const lv_area_t *area, lv_color_t *color_p)
 {
     lgfx::v1::pixelcopy_t pc = create_pc((lgfx::rgb565_t *)&color_p->full);
     pc.src_bitwidth = area->x2 - area->x1 + 1;
@@ -75,9 +80,4 @@ void Display::flush(const lv_area_t *area, lv_color_t *color_p)
 
     endWrite();
     lv_disp_flush_ready(&disp_drv);
-}
-
-void Display::flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p)
-{
-    static_cast<Display *>(disp->user_data)->flush(area, color_p);
 }

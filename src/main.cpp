@@ -7,19 +7,28 @@
 #include <FS.h>
 #include <SPIFFS.h>
 #include <PID_v1.h>
-#include <driver/pcnt.h>
 
-#include "BluetoothSerial.h"
+#include <BluetoothSerial.h>
 
 #include <vector>
 
-#include "gradient.h"
-#include "power.h"
-#include "display.h"
+#include "Gradient.h"
+#include "Gc9a01Display.h"
+#include "SolidStateRelay.h"
+#include "LeadingEdgeDimmer.h"
+#include "Xdb401PressureSensor.h"
+#include "Mlx90614TemperatureSensor.h"
+#include "PulseCounter.h"
 #include "MedianAverage.h"
 #include "JitterFilter.h"
 
-//lv_font_conv  --no-compress --no-prefilter --bpp 4 --size 20 --font Montserrat-Medium.ttf -r 0x20-0x7f,0xdf,0xe4,0xf6,0xfc,0xc4,0xd6,0xdc,0xb0  --font FontAwesome5-Solid+Brands+Regular.woff -r 61441,61448,61451,61452,61452,61453,61457,61459,61461,61465,61468,61473,61478,61479,61480,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61587,61589,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61787,61931,62016,62017,62018,62019,62020,62087,62099,62212,62189,62810,63426,63650,62033,61507,62919 --format lvgl -o lv_font_montserrat_20.c --force-fast-kern-format
+//lv_font_conv  --no-compress --no-prefilter --bpp 4 --size 20 --font Montserrat-Medium.ttf -r 0x20-0x7f,0xdf,0xe4,0xf6,0xfc,0xc4,0xd6,0xdc,0xb0  --font FontAwesome5-Solid+Brands+Regular.woff -r 61441,61448,61451,61452,61452,61453,61457,61459,61461,61465,61468,61473,61478,61479,61480,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61587,61589,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61787,61931,62016,62017,62018,62019,62020,62087,62099,62212,62189,62810,63426,63650,62033,61507,62919 --format lvgl -o lv_font_my_montserrat_20.c --force-fast-kern-format
+
+extern const lv_font_t lv_font_my_montserrat_48;
+extern const lv_font_t lv_font_my_montserrat_40;
+extern const lv_font_t lv_font_my_montserrat_36;
+extern const lv_font_t lv_font_my_montserrat_32;
+extern const lv_font_t lv_font_my_montserrat_20;
 
 #define PID_P                             2.6
 #define PID_I                             0.05
@@ -56,6 +65,7 @@
 
 #define HEATING_ENERGY_PER_ML_AND_KELVIN_WATTSECONDS   5.76
 #define HEATING_OUTPUT_WATTS  1000
+#define HEATING_CYCLE_LENGTH    10
 
 #define READY_NOTIFICATION_INTERVAL 60000
 
@@ -73,10 +83,14 @@ static float brewingUnitTemperatureHeatWeights[] = { 5.0f, 0.0f, 5.0f, 60.0f, 15
 unsigned int const waterLevelGradientColors[] = {  RED, YELLOW,  GREEN };
 static float waterLevelHeatWeights[] = { 0.2f, 0.8f };
 
-int ReadXdb401PressureValue(int *result);
-int ReadMlx60914PTemperatureValue(uint8_t reg, float *result);
+Gc9a01Display display(GC9A01_SPI_WRITE_FREQUENCY, PIN_GC9A01_SCLK, PIN_GC9A01_MOSI, PIN_GC9A01_DC, PIN_GC9A01_CS, PIN_GC9A01_RST);
 
-Display display(GC9A01_SPI_WRITE_FREQUENCY, PIN_GC9A01_SCLK, PIN_GC9A01_MOSI, PIN_GC9A01_DC, PIN_GC9A01_CS, PIN_GC9A01_RST);
+IRAM_ATTR ZeroCrossDetector zeroCrossDetector(PIN_AC_ZEROCROSS);
+IRAM_ATTR SolidStateRelay heatingRelay(PIN_HEATING_AC, zeroCrossDetector);
+IRAM_ATTR LeadingEdgeDimmer pumpDimmer(PIN_PUMP_AC, zeroCrossDetector);
+Xdb401PressureSensor pressureSensor(Wire, 20.0);
+Mlx90614TemperatureSensor brewingUnitTemperatureSensor(Wire);
+PulseCounter flowCounter(PIN_FLOW_METER);
 
 SPIClass hspi(HSPI);
 Adafruit_MAX31865 thermo(PIN_MAX31865_SELECT, &hspi);
@@ -132,8 +146,6 @@ void setBrewingUnitTemperature(float t)
   brewingUnitTemperatureHeatWeights[1] = brewingUnitTemperature - brewingUnitTemperatureHeatWeights[0] - brewingUnitTemperatureHeatWeights[2];
 }
 
-unsigned int flowCounter = 0;
-
 unsigned int lastFlowCounter = 0;
 
 lv_obj_t *standbyScreen;
@@ -177,7 +189,7 @@ void initStandbyUi()
   lv_obj_center(standbyTemperatureArc);
 
   standbyTemperatureLabel = lv_label_create(standbyScreen);
-  lv_obj_set_style_text_font(standbyTemperatureLabel, &lv_font_montserrat_40, 0);
+  lv_obj_set_style_text_font(standbyTemperatureLabel, &lv_font_my_montserrat_40, 0);
   lv_obj_set_width(standbyTemperatureLabel, 150);
   lv_obj_set_style_text_align(standbyTemperatureLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(standbyTemperatureLabel, LV_ALIGN_CENTER, 0, -56);
@@ -201,20 +213,20 @@ void initStandbyUi()
   lv_obj_center(waterLevelArc);
 
   brewingUnitTemperatureLabel = lv_label_create(standbyScreen);
-  lv_obj_set_style_text_font(brewingUnitTemperatureLabel, &lv_font_montserrat_32, 0);
+  lv_obj_set_style_text_font(brewingUnitTemperatureLabel, &lv_font_my_montserrat_32, 0);
   lv_obj_set_width(brewingUnitTemperatureLabel, 160);
   lv_obj_set_style_text_align(brewingUnitTemperatureLabel, LV_TEXT_ALIGN_LEFT, 0);
   lv_obj_align(brewingUnitTemperatureLabel, LV_ALIGN_CENTER, 0, -23);
 
   waterLevelSymbol = lv_label_create(standbyScreen);
-  lv_obj_set_style_text_font(waterLevelSymbol, &lv_font_montserrat_20, 0);
+  lv_obj_set_style_text_font(waterLevelSymbol, &lv_font_my_montserrat_20, 0);
   lv_obj_set_width(waterLevelSymbol, 160);
   lv_obj_set_style_text_align(waterLevelSymbol, LV_TEXT_ALIGN_RIGHT, 0);
   lv_obj_align(waterLevelSymbol, LV_ALIGN_CENTER, 0, -23);
   lv_label_set_text_fmt(waterLevelSymbol, "\xEF\x81\x83");
 
   waterLevelLabel = lv_label_create(standbyScreen);
-  lv_obj_set_style_text_font(waterLevelLabel, &lv_font_montserrat_32, 0);
+  lv_obj_set_style_text_font(waterLevelLabel, &lv_font_my_montserrat_32, 0);
   lv_obj_set_width(waterLevelLabel, 126);
   lv_obj_set_style_text_align(waterLevelLabel, LV_TEXT_ALIGN_RIGHT, 0);
   lv_obj_align(waterLevelLabel, LV_ALIGN_CENTER, 0, -23);
@@ -243,26 +255,26 @@ void initInfuseUi()
   lv_obj_center(infuseTemperatureDiffArc);
 
   infusePressureLabel = lv_label_create(infuseScreen);
-  lv_obj_set_style_text_font(infusePressureLabel, &lv_font_montserrat_48, 0);
+  lv_obj_set_style_text_font(infusePressureLabel, &lv_font_my_montserrat_48, 0);
   lv_obj_set_width(infusePressureLabel, 150);
   lv_obj_set_style_text_align(infusePressureLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(infusePressureLabel, LV_ALIGN_CENTER, 0, -42);
 
   lv_obj_t *barLabel = lv_label_create(infuseScreen);
-  lv_obj_set_style_text_font(barLabel, &lv_font_montserrat_20, 0);
+  lv_obj_set_style_text_font(barLabel, &lv_font_my_montserrat_20, 0);
   lv_obj_set_width(barLabel, 150);
   lv_obj_set_style_text_align(barLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(barLabel, LV_ALIGN_CENTER, 0, -76);
   lv_label_set_text_fmt(barLabel, "Bar");
 
   infuseVolumeLabel = lv_label_create(infuseScreen);
-  lv_obj_set_style_text_font(infuseVolumeLabel, &lv_font_montserrat_36, 0);
+  lv_obj_set_style_text_font(infuseVolumeLabel, &lv_font_my_montserrat_36, 0);
   lv_obj_set_width(infuseVolumeLabel, 150);
   lv_obj_set_style_text_align(infuseVolumeLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(infuseVolumeLabel, LV_ALIGN_CENTER, 0, 0);
 
   infuseTemperatureLabel = lv_label_create(infuseScreen);
-  lv_obj_set_style_text_font(infuseTemperatureLabel, &lv_font_montserrat_48, 0);
+  lv_obj_set_style_text_font(infuseTemperatureLabel, &lv_font_my_montserrat_48, 0);
   lv_obj_set_width(infuseTemperatureLabel, 150);
   lv_obj_set_style_text_align(infuseTemperatureLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(infuseTemperatureLabel, LV_ALIGN_CENTER, 0, 44);
@@ -273,21 +285,21 @@ void initPairingUi(char *btDeviceName)
   pairingWaitScreen = lv_obj_create(NULL);
 
   lv_obj_t *symbolLabel = lv_label_create(pairingWaitScreen);
-  lv_obj_set_style_text_font(symbolLabel, &lv_font_montserrat_48, 0);
+  lv_obj_set_style_text_font(symbolLabel, &lv_font_my_montserrat_48, 0);
   lv_obj_set_width(symbolLabel, 230);
   lv_obj_set_style_text_align(symbolLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(symbolLabel, LV_ALIGN_CENTER, 0, -80);
   lv_label_set_text_fmt(symbolLabel, LV_SYMBOL_BLUETOOTH);
 
   lv_obj_t *pairingLabel = lv_label_create(pairingWaitScreen);
-  lv_obj_set_style_text_font(pairingLabel, &lv_font_montserrat_32, 0);
+  lv_obj_set_style_text_font(pairingLabel, &lv_font_my_montserrat_32, 0);
   lv_obj_set_width(pairingLabel, 230);
   lv_obj_set_style_text_align(pairingLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(pairingLabel, LV_ALIGN_CENTER, 0, -18);
   lv_label_set_text_fmt(pairingLabel, "Kopplung\naktiv");
 
   lv_obj_t *deviceNameLabel = lv_label_create(pairingWaitScreen);
-  lv_obj_set_style_text_font(deviceNameLabel, &lv_font_montserrat_20, 0);
+  lv_obj_set_style_text_font(deviceNameLabel, &lv_font_my_montserrat_20, 0);
   lv_obj_set_width(deviceNameLabel, 190);
   lv_obj_set_style_text_align(deviceNameLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(deviceNameLabel, LV_ALIGN_CENTER, 0, 50);
@@ -296,20 +308,20 @@ void initPairingUi(char *btDeviceName)
   pairingPinScreen = lv_obj_create(NULL);
 
   lv_obj_t *pinLabel = lv_label_create(pairingPinScreen);
-  lv_obj_set_style_text_font(pinLabel, &lv_font_montserrat_36, 0);
+  lv_obj_set_style_text_font(pinLabel, &lv_font_my_montserrat_36, 0);
   lv_obj_set_width(pinLabel, 230);
   lv_obj_set_style_text_align(pinLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(pinLabel, LV_ALIGN_CENTER, 0, -85);
   lv_label_set_text_fmt(pinLabel, "PIN:");
 
   pairingPinLabel = lv_label_create(pairingPinScreen);
-  lv_obj_set_style_text_font(pairingPinLabel, &lv_font_montserrat_48, 0);
+  lv_obj_set_style_text_font(pairingPinLabel, &lv_font_my_montserrat_48, 0);
   lv_obj_set_width(pairingPinLabel, 230);
   lv_obj_set_style_text_align(pairingPinLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(pairingPinLabel, LV_ALIGN_CENTER, 0, -45);
 
   confirmHintLabel = lv_label_create(pairingPinScreen);
-  lv_obj_set_style_text_font(confirmHintLabel, &lv_font_montserrat_20, 0);
+  lv_obj_set_style_text_font(confirmHintLabel, &lv_font_my_montserrat_20, 0);
   lv_obj_set_width(confirmHintLabel, 230);
   lv_obj_set_style_text_align(confirmHintLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(confirmHintLabel, LV_ALIGN_CENTER, 0, 40);
@@ -318,21 +330,21 @@ void initPairingUi(char *btDeviceName)
   pairingSuccessScreen = lv_obj_create(NULL);
 
   symbolLabel = lv_label_create(pairingSuccessScreen);
-  lv_obj_set_style_text_font(symbolLabel, &lv_font_montserrat_48, 0);
+  lv_obj_set_style_text_font(symbolLabel, &lv_font_my_montserrat_48, 0);
   lv_obj_set_width(symbolLabel, 230);
   lv_obj_set_style_text_align(symbolLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(symbolLabel, LV_ALIGN_CENTER, 0, -65);
   lv_label_set_text_fmt(symbolLabel, LV_SYMBOL_OK);
 
   lv_obj_t *successLabel = lv_label_create(pairingSuccessScreen);
-  lv_obj_set_style_text_font(successLabel, &lv_font_montserrat_36, 0);
+  lv_obj_set_style_text_font(successLabel, &lv_font_my_montserrat_36, 0);
   lv_obj_set_width(successLabel, 230);
   lv_obj_set_style_text_align(successLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(successLabel, LV_ALIGN_CENTER, 0, -5);
   lv_label_set_text_fmt(successLabel, "Kopplung\nerfolgreich");
 
   lv_obj_t *successText = lv_label_create(pairingSuccessScreen);
-  lv_obj_set_style_text_font(successText, &lv_font_montserrat_20, 0);
+  lv_obj_set_style_text_font(successText, &lv_font_my_montserrat_20, 0);
   lv_obj_set_width(successText, 230);
   lv_obj_set_style_text_align(successText, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(successText, LV_ALIGN_CENTER, 0, 65);
@@ -342,14 +354,14 @@ void initPairingUi(char *btDeviceName)
   pairingFailureScreen = lv_obj_create(NULL);
 
   symbolLabel = lv_label_create(pairingFailureScreen);
-  lv_obj_set_style_text_font(symbolLabel, &lv_font_montserrat_48, 0);
+  lv_obj_set_style_text_font(symbolLabel, &lv_font_my_montserrat_48, 0);
   lv_obj_set_width(symbolLabel, 230);
   lv_obj_set_style_text_align(symbolLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(symbolLabel, LV_ALIGN_CENTER, 0, -70);
   lv_label_set_text_fmt(symbolLabel, LV_SYMBOL_WARNING);
 
   lv_obj_t *failureText = lv_label_create(pairingFailureScreen);
-  lv_obj_set_style_text_font(failureText, &lv_font_montserrat_20, 0);
+  lv_obj_set_style_text_font(failureText, &lv_font_my_montserrat_20, 0);
   lv_obj_set_width(failureText, 210);
   lv_obj_set_style_text_align(failureText, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(failureText, LV_ALIGN_CENTER, 0, 20);
@@ -514,17 +526,6 @@ uint32_t pairingState = 0;
 
 Qm3032Config config;
 
-#define FLOW_METER_PCNT_UNIT  PCNT_UNIT_0
-
-pcnt_config_t flowMeterPcntConfig = {
-    .pulse_gpio_num = PIN_FLOW_METER,
-    .ctrl_gpio_num = -1,
-    .pos_mode = PCNT_COUNT_INC,
-    .neg_mode = PCNT_COUNT_DIS,
-    .unit = FLOW_METER_PCNT_UNIT,
-    .channel = PCNT_CHANNEL_0
-};
-
 void readyMelody()
 {
   tone(PIN_BUZZER, 1056, 150);
@@ -566,7 +567,7 @@ void setup()
   pinMode(PIN_HOTWATER_SWITCH, INPUT);
 
   pinMode(PIN_GC9A01_BL, OUTPUT);
-
+Serial.printf("1\n");
   infusing = digitalRead(PIN_INFUSE_SWITCH);
   steam = digitalRead(PIN_STEAM_SWITCH);
   hotWater = digitalRead(PIN_HOTWATER_SWITCH);
@@ -587,6 +588,7 @@ void setup()
   }
 
   bt.enableSSP();
+Serial.printf("2\n");
 
   if (config.btDeviceName[0] == 0)
   {
@@ -609,9 +611,15 @@ void setup()
   }
 
 	pinMode(PIN_FLOW_METER, INPUT_PULLDOWN);
-	pcnt_unit_config(&flowMeterPcntConfig);
+
+Serial.printf("3\n");
+
 
   Wire.begin();
+
+  heatingRelay.begin();
+  pumpDimmer.begin();
+  zeroCrossDetector.begin();
 
   waterLevelSensorPresent = probeDevice(Wire, VL53L0X_I2C_ADDR);
 
@@ -629,9 +637,8 @@ void setup()
   thermo.autoConvert(true);
   thermo.enableBias(true);
 
+Serial.printf("4\n");
   pinMode(PIN_VALVE_AC, OUTPUT);
-
-  powerBegin(0);
 
   temperaturePid.SetOutputLimits(0, PID_MAX_OUTPUT);
   temperaturePid.SetSampleTime(PID_INTERVAL_CYCLES * CYCLE_LENGTH);
@@ -643,9 +650,9 @@ void setup()
   bt.onConfirmRequest(BTIgnoreRequestCallback);
   bt.begin(config.btDeviceName, false);
 
-  pcnt_counter_clear(FLOW_METER_PCNT_UNIT);
-  pcnt_counter_resume(FLOW_METER_PCNT_UNIT);
+  flowCounter.begin();
 
+Serial.printf("5\n");
   startupTime = millis();
 }
 
@@ -723,7 +730,7 @@ void updateUi()
     lv_obj_set_style_arc_color(infusePressureArc, lv_color_hex(pressureGradient.getRgb(displayedPressure)), LV_PART_INDICATOR | LV_STATE_DEFAULT );
 
 
-    float volume = (flowCounter - flowCounterInfusionStart) * FLOW_ML_PER_TICK;
+    float volume = (flowCounter.ticks() - flowCounterInfusionStart) * FLOW_ML_PER_TICK;
     lv_label_set_text_fmt(infuseVolumeLabel, (hotWater && coldFlush) ? "%.1f ml (kühl)" : "%.1f ml", volume);
   }
   else
@@ -1109,11 +1116,11 @@ void loop()
     {
       if (temperatureIs < config.steamTemperature)
       {
-        setHeatingCylces(MAX31856_READ_INTERVAL_CYCLES * CYCLE_LENGTH / HEATING_CYCLE_LENGTH);
+        heatingRelay.setCycles(MAX31856_READ_INTERVAL_CYCLES * CYCLE_LENGTH / HEATING_CYCLE_LENGTH);
       }
       else
       {
-        setHeatingCylces(0, true);
+        heatingRelay.setCycles(0, true);
       }
     }
   }
@@ -1123,12 +1130,12 @@ void loop()
     {        
       if (temperaturePid.Compute())
       {
-        setHeatingCylces(pidOut / PID_MAX_OUTPUT * (PID_INTERVAL_CYCLES * CYCLE_LENGTH / HEATING_CYCLE_LENGTH));
+        heatingRelay.setCycles(pidOut / PID_MAX_OUTPUT * (PID_INTERVAL_CYCLES * CYCLE_LENGTH / HEATING_CYCLE_LENGTH));
       }
     }
     else 
     {
-      setHeatingCylces(0, true);
+      heatingRelay.setCycles(0, true);
     }
   }
 
@@ -1136,12 +1143,6 @@ void loop()
   {
     vTaskResume(lvglUpdateTask);
   }
-
-  int16_t cycleFlowCount;
-  pcnt_get_counter_value(FLOW_METER_PCNT_UNIT, &cycleFlowCount);
-  pcnt_counter_clear(FLOW_METER_PCNT_UNIT);
-
-  flowCounter += cycleFlowCount;
 
   if (!steam && !hotWater && digitalRead(PIN_INFUSE_SWITCH) != infusing)
   {
@@ -1151,18 +1152,18 @@ void loop()
       digitalWrite(PIN_VALVE_AC, HIGH);
       valveDeadline = 0;
       infuseStart = millis();
-      flowCounterInfusionStart = flowCounter;
+      flowCounterInfusionStart = flowCounter.ticks();
       infusionHeatingCyclesIs = 0;
       preinfusionPressureReached = false;
       preinfusionPassed = false;
    }
     else
     {
-      setHeatingCylces(0);
+      heatingRelay.setCycles(0);
 
       setTemperature(config.temperature);
 
-      pumpSetLevel(0);
+      pumpDimmer.setLevel(0);
       valveDeadline = millis() + (millis() - infuseStart < 10000 ? 20000 : 2000);
 
       currentSplashPos = 0;
@@ -1179,7 +1180,7 @@ void loop()
     }
     else
     {
-      pumpSetLevel(0);
+      pumpDimmer.setLevel(0);
       digitalWrite(PIN_VALVE_AC, LOW);
     }
   }
@@ -1191,13 +1192,13 @@ void loop()
     {
       coldFlush = temperateAvg.get() >= 100.0;
       digitalWrite(PIN_VALVE_AC, coldFlush ? LOW : HIGH);
-      flowCounterInfusionStart = flowCounter;
+      flowCounterInfusionStart = flowCounter.ticks();
       infusionHeatingCyclesIs = 0;
     }
     else
     {
       setTemperature(config.temperature);
-      pumpSetLevel(0);
+      pumpDimmer.setLevel(0);
       digitalWrite(PIN_VALVE_AC, LOW);
     }
   }
@@ -1215,14 +1216,14 @@ void loop()
         else
         {
           preinfusionPassed = true;
-          flowCounterInfusionStart = flowCounter;
+          flowCounterInfusionStart = flowCounter.ticks();
           infusionHeatingCyclesIs = 0;
           infuseStart = millis();
         }
       }
       else
       {
-        if ((flowCounter - flowCounterInfusionStart) * FLOW_ML_PER_TICK > config.maxInfusionVolume)
+        if ((flowCounter.ticks() - flowCounterInfusionStart) * FLOW_ML_PER_TICK > config.maxInfusionVolume)
         {
           pumpValue = 0;
           digitalWrite(PIN_VALVE_AC, LOW);
@@ -1237,22 +1238,22 @@ void loop()
         }
       }
 
-      pumpSetLevel(pumpValue * UINT8_MAX);
+      pumpDimmer.setLevel(pumpValue * UINT8_MAX);
   }
   else if (steam)
   {
       if (cycle % STEAM_WATER_SUPPLY_INTERVAL_CYCLES == 0 && temperatureIs > STEAM_WATER_SUPPLY_MIN_TEMPERATURE)
       {
-         pumpSetLevel(config.preinfusionPumpPower * UINT8_MAX);
+         pumpDimmer.setLevel(config.preinfusionPumpPower * UINT8_MAX);
       }
       else if (cycle % STEAM_WATER_SUPPLY_INTERVAL_CYCLES == config.steamWaterSupplyCycles)
       {
-         pumpSetLevel(0);
+         pumpDimmer.setLevel(0);
       }
   }
   else if (hotWater)
   {
-      pumpSetLevel((coldFlush ? config.preinfusionPressure : config.hotWaterPumpPower) * UINT8_MAX);
+      pumpDimmer.setLevel((coldFlush ? config.preinfusionPressure : config.hotWaterPumpPower) * UINT8_MAX);
   }
   else
   {
@@ -1275,8 +1276,8 @@ void loop()
       warmup = false;
     }
   
-    float brewingUnitTemperature;
-    if (ReadMlx60914PTemperatureValue(0x07, &brewingUnitTemperature) == 0)
+    double brewingUnitTemperature;
+    if (brewingUnitTemperatureSensor.readValue(Mlx90614TemperatureSensor::Register::Obj1, brewingUnitTemperature) == 0)
     {
       brewingUnitTemperateAvg.push(brewingUnitTemperature);
     }
@@ -1288,10 +1289,9 @@ void loop()
 
   if (cycle % XDB401_READ_INTERVAL_CYCLES == 0)
   {
-    int pressureSample;
-    if (ReadXdb401PressureValue(&pressureSample) == 0)
+    double pressure;
+    if (pressureSensor.readValue(pressure) == 0)
     {
-        float pressure = (short)(pressureSample / 256) / float(SHRT_MAX) * XDB401_MAX_BAR;
         pressureAvg.push(pressure);
 
         if (infusing && !preinfusionPressureReached && pressureAvg.get() > config.preinfusionPressure)
@@ -1303,7 +1303,7 @@ void loop()
 
   if (cycle % FLOW_PROCESS_INTERVAL_CYCLES == 0)
   {
-    unsigned int currentFlowCounter = flowCounter;
+    unsigned int currentFlowCounter = flowCounter.ticks();
     float flow = (currentFlowCounter - lastFlowCounter) * FLOW_ML_PER_TICK / (FLOW_PROCESS_INTERVAL_CYCLES * CYCLE_LENGTH / 1000.0);
     flowAvg.push(flow);
     lastFlowCounter = currentFlowCounter;
@@ -1317,13 +1317,13 @@ void loop()
           unsigned int heatingCyclesSet = heatingEnergy / HEATING_OUTPUT_WATTS * 1000 / HEATING_CYCLE_LENGTH;
           if (heatingCyclesSet > infusionHeatingCyclesIs) 
           {
-            setHeatingCylces(heatingCyclesSet - infusionHeatingCyclesIs, false);
+            heatingRelay.setCycles(heatingCyclesSet - infusionHeatingCyclesIs, false);
             infusionHeatingCyclesIs = heatingCyclesSet;
           }
         }
         else
         {
-          setHeatingCylces(0, true);
+          heatingRelay.setCycles(0, true);
         }
     }
   }

@@ -1,57 +1,23 @@
-#include <Wire.h>
-#include <Arduino.h>
+#include "Xdb401PressureSensor.h"
 
-#define XDB401_ADDRESS 0x6D
-#define XDB401_PRESSURE_REG 0x06
+const uint8_t Xdb401PressureReg = 0x06;
 
-#define NSA2860X_PCH_CONFIG1_REG    0xa4
-#define NSA2860X_COMMAND_REG        0x30
-#define NSA2860X_STATUS_REG         0x02
-#define NSA2860X_ODR_P_10HZ_50HZ_NOTCH       0x09
-#define NSA2860X_ODR_P_37_5HZ                0x06
-
-#define NSA2860X_EEPROM_LOCK_REG         0xd9
-
-// Wire.begin() must have begin called prior to this function
-
-uint8_t ReadReg(uint8_t reg)
-{
-    Wire.beginTransmission(XDB401_ADDRESS);
-    Wire.write(reg);
-    Wire.endTransmission(false);
-    if (Wire.requestFrom(XDB401_ADDRESS, 1) != 1)
-    {
-         Wire.endTransmission();
-         return 0;
-    }
-    uint8_t value = Wire.read();
-    Wire.endTransmission();
-    return value;
+Xdb401PressureSensor::Xdb401PressureSensor(TwoWire &wire, double maxPressureBar, uint8_t address) :
+    wire(wire), address(address), maxPressure(maxPressureBar)
+{  
 }
 
-
-void WriteReg(uint8_t reg, uint8_t value)
-{
-    uint8_t data[2];
-    data[0] = reg;
-    data[1] = value;
-    Wire.beginTransmission(XDB401_ADDRESS);
-    Wire.write(data, 2);
-    Wire.endTransmission();
-}
-
-
-int ReadXdb401PressureValue(int *result)
+static int ReadXdb401PressureValue(TwoWire &wire, uint8_t address, int32_t *result)
 {
     uint32_t sample = 0;
     
-    Wire.beginTransmission(XDB401_ADDRESS);
-    Wire.write(XDB401_PRESSURE_REG);
+    Wire.beginTransmission(address);
+    Wire.write(Xdb401PressureReg);
     Wire.endTransmission(false);
-    if (Wire.requestFrom(XDB401_ADDRESS, 3) != 3)
+    if (Wire.requestFrom(address, 3) != 3)
     {
-         Wire.endTransmission();
-         return -1;
+        Wire.endTransmission();
+        return -1;
     }
     sample = (Wire.read() << 16) | (Wire.read() << 8) | Wire.read();
     Wire.endTransmission();
@@ -61,10 +27,56 @@ int ReadXdb401PressureValue(int *result)
         return -2;
     }
 
-    *result = (sample & 0x800000) ? sample - 0x1000000 : sample;
+    *result = (int16_t)((sample & 0x800000) ? sample - 0x1000000 : sample);
 
     // TODO return proper error codes
     return 0;
+}
+
+int Xdb401PressureSensor::readValue(double &value)
+{
+    int32_t sample;
+    int ret = ReadXdb401PressureValue(wire, address, &sample);
+    if (ret == 0)
+    {
+        value = (short)(sample / 256) / float(SHRT_MAX) * maxPressure;
+    }
+    return ret;
+}
+
+#if 0
+#define NSA2860X_PCH_CONFIG1_REG    0xa4
+#define NSA2860X_COMMAND_REG        0x30
+#define NSA2860X_STATUS_REG         0x02
+#define NSA2860X_ODR_P_10HZ_50HZ_NOTCH       0x09
+#define NSA2860X_ODR_P_37_5HZ                0x06
+
+#define NSA2860X_EEPROM_LOCK_REG         0xd9
+
+
+static uint8_t ReadReg(TwoWire *wire, uint8_t address, uint8_t reg)
+{
+    wire->beginTransmission(address);
+    wire->write(reg);
+    wire->endTransmission(false);
+    if (wire->requestFrom(address, 1) != 1)
+    {
+         wire->endTransmission();
+         return 0;
+    }
+    uint8_t value = wire->read();
+    wire->endTransmission();
+    return value;
+}
+
+static void WriteReg(TwoWire *wire, uint8_t address, uint8_t reg, uint8_t value)
+{
+    uint8_t data[2];
+    data[0] = reg;
+    data[1] = value;
+    wire->beginTransmission(address);
+    wire->write(data, 2);
+    wire->endTransmission();
 }
 
 void ReadRegs()
@@ -147,3 +159,4 @@ int r;
     Serial.printf("EEprom lock: 0x%02x\n", ReadReg(NSA2860X_EEPROM_LOCK_REG));
 
 }
+#endif
