@@ -54,8 +54,8 @@ void IRAM_ATTR isr() {
         digitalWrite(PIN_PUMP_AC, LOW);
         if (leadingEdgeDelay < 10000)
         {
-            timerAlarmWrite(timer, leadingEdgeDelay, false);
-            timerAlarmEnable(timer);
+			timerAlarm(timer, leadingEdgeDelay, false, 0);
+            timerRestart(timer);
         }
     }
     else
@@ -81,8 +81,9 @@ void powerBegin(uint8_t timerId) {
 	pinMode(PIN_PUMP_AC, OUTPUT);
   	pinMode(PIN_HEATING_AC, OUTPUT);
 
-	timer = timerBegin(timerId, 80, true);
-	timerAttachInterrupt(timer, &ignite, true);
+	timer = timerBegin(10000*100);
+	//timerStop(timer);
+	timerAttachInterrupt(timer, &ignite);
 }
 
 void pumpSetLevel(uint8_t level)
