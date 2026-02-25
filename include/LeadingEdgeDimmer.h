@@ -1,11 +1,11 @@
 #pragma once
 
-#include "ZeroCrossDetector.h"
+#include "AcZeroCrossDetector.h"
 
-class LeadingEdgeDimmer : private ZeroCrossListener
+class LeadingEdgeDimmer : private AcZeroCrossListener
 {
 public:
-    LeadingEdgeDimmer(uint8_t triacPin, ZeroCrossDetector &zeroCrossDetector);
+    LeadingEdgeDimmer(uint8_t triacPin, AcZeroCrossDetector &zeroCrossDetector);
     ~LeadingEdgeDimmer();
 
     void begin();
@@ -14,7 +14,7 @@ public:
     void setLevel(uint8_t level);
 
 private:
-    ZeroCrossDetector &zeroCrossDetector;
+    AcZeroCrossDetector &zeroCrossDetector;
     uint32_t leadingEdgeDelay;
     uint8_t pin;
     hw_timer_t *timer;

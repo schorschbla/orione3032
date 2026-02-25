@@ -1,36 +1,36 @@
-# include "ZeroCrossDetector.h"
+# include "AcZeroCrossDetector.h"
 
 const uint32_t ZeroCrossThresholdUs = 9000;
 
-ZeroCrossDetector::ZeroCrossDetector(uint8_t pin) : pin(pin), lastZeroCrossTime(0), listeners({0})
+AcZeroCrossDetector::AcZeroCrossDetector(uint8_t pin) : pin(pin), lastZeroCrossTime(0), listeners({0}), count(0)
 {
 }
 
-ZeroCrossDetector::~ZeroCrossDetector()
+AcZeroCrossDetector::~AcZeroCrossDetector()
 {
     end();
 }
 
 IRAM_ATTR void onInterruptArg(void *arg)
 {
-    static_cast<ZeroCrossDetector*>(arg)->onInterrupt();
+    static_cast<AcZeroCrossDetector*>(arg)->onInterrupt();
 }
 
-void ZeroCrossDetector::begin()
+void AcZeroCrossDetector::begin()
 {
 	pinMode(pin, INPUT_PULLDOWN);
 	attachInterruptArg(pin, onInterruptArg, this, RISING);
 }
 
-void ZeroCrossDetector::end()
+void AcZeroCrossDetector::end()
 {
 	detachInterrupt(pin);
 }
 
-bool ZeroCrossDetector::addListener(ZeroCrossListener *listener)
+bool AcZeroCrossDetector::addListener(AcZeroCrossListener *listener)
 {
     int slot = -1;
-    for (int i = 0; i < sizeof(listeners) / sizeof(ZeroCrossListener*); ++i)
+    for (int i = 0; i < sizeof(listeners) / sizeof(AcZeroCrossListener*); ++i)
     {
         if (listeners[i] == listener)
         {
@@ -49,9 +49,9 @@ bool ZeroCrossDetector::addListener(ZeroCrossListener *listener)
     return true;
 }
 
-bool ZeroCrossDetector::removeListener(ZeroCrossListener *listener)
+bool AcZeroCrossDetector::removeListener(AcZeroCrossListener *listener)
 {
-    for (int i = 0; i < sizeof(listeners) / sizeof(ZeroCrossListener*); ++i)
+    for (int i = 0; i < sizeof(listeners) / sizeof(AcZeroCrossListener*); ++i)
     {
         if (listeners[i] == listener)
         {
@@ -62,12 +62,13 @@ bool ZeroCrossDetector::removeListener(ZeroCrossListener *listener)
     return false;
 }
 
-IRAM_ATTR void ZeroCrossDetector::onInterrupt()
+IRAM_ATTR void AcZeroCrossDetector::onInterrupt()
 {
     uint32_t time = micros();
 	if (lastZeroCrossTime == 0 || time - lastZeroCrossTime > ZeroCrossThresholdUs)
     {
-        for (int i = 0; i < sizeof(listeners) / sizeof(ZeroCrossListener*); ++i)
+        count++;
+        for (int i = 0; i < sizeof(listeners) / sizeof(AcZeroCrossListener*); ++i)
         {
             if (listeners[i] != nullptr)
             {

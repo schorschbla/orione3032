@@ -42,7 +42,7 @@ public:
 private:
     const Qm3033HardwareConfig &hardwareConfig;
     Gc9a01Display display;
-    IRAM_ATTR ZeroCrossDetector zeroCrossDetector;
+    IRAM_ATTR AcZeroCrossDetector zeroCrossDetector;
     IRAM_ATTR SolidStateRelay heatingRelay;
     IRAM_ATTR LeadingEdgeDimmer pumpDimmer;
     Xdb401PressureSensor pressureSensor;

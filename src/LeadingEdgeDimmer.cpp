@@ -1,8 +1,8 @@
 #include "LeadingEdgeDimmer.h"
 
-const uint32_t CycleLength = 10000;
+const uint32_t CycleLength = 1000;
 
-LeadingEdgeDimmer::LeadingEdgeDimmer(uint8_t pin, ZeroCrossDetector &zeroCrossDetector) : 
+LeadingEdgeDimmer::LeadingEdgeDimmer(uint8_t pin, AcZeroCrossDetector &zeroCrossDetector) : 
     pin(pin), zeroCrossDetector(zeroCrossDetector), leadingEdgeDelay(CycleLength), timer(nullptr)
 {
 }
@@ -22,7 +22,6 @@ void LeadingEdgeDimmer::begin()
   	pinMode(pin, OUTPUT);
 
 	timer = timerBegin(10000);
-	timerStop(timer);
 	timerAttachInterruptArg(timer, &onTimerInterruptArg, this);
 
     zeroCrossDetector.addListener(this);
@@ -51,8 +50,8 @@ IRAM_ATTR void LeadingEdgeDimmer::onZeroCross()
         digitalWrite(pin, LOW);
         if (leadingEdgeDelay < CycleLength)
         {
-            timerWrite(timer, leadingEdgeDelay);
             timerRestart(timer);
+            timerAlarm(timer, leadingEdgeDelay, false, 0);
         }
     }
     else

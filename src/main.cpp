@@ -12,7 +12,7 @@
 
 #include <vector>
 
-#include "Gradient.h"
+#include "ColorScale.h"
 #include "Gc9a01Display.h"
 #include "SolidStateRelay.h"
 #include "LeadingEdgeDimmer.h"
@@ -85,7 +85,7 @@ static float waterLevelHeatWeights[] = { 0.2f, 0.8f };
 
 Gc9a01Display display(GC9A01_SPI_WRITE_FREQUENCY, PIN_GC9A01_SCLK, PIN_GC9A01_MOSI, PIN_GC9A01_DC, PIN_GC9A01_CS, PIN_GC9A01_RST);
 
-IRAM_ATTR ZeroCrossDetector zeroCrossDetector(PIN_AC_ZEROCROSS);
+IRAM_ATTR AcZeroCrossDetector zeroCrossDetector(PIN_AC_ZEROCROSS);
 IRAM_ATTR SolidStateRelay heatingRelay(PIN_HEATING_AC, zeroCrossDetector);
 IRAM_ATTR LeadingEdgeDimmer pumpDimmer(PIN_PUMP_AC, zeroCrossDetector);
 Xdb401PressureSensor pressureSensor(Wire, 20.0);
@@ -104,10 +104,10 @@ double temperatureSet, temperatureIs, pidOut, brewingUnitTemperature;
 
 PID temperaturePid(&temperatureIs, &pidOut, &temperatureSet, PID_P, 0, 0, DIRECT);
 
-Gradient tempGradient(heatGradient, temperatureHeatWeights, 6);
-Gradient brewingUnitTempGradient(heatGradient, brewingUnitTemperatureHeatWeights, 6);
-Gradient pressureGradient(heatGradient, pressureHeatWeights, 6);
-Gradient waterLevelGradient(waterLevelGradientColors, waterLevelHeatWeights, 2);
+ColorScale tempGradient(heatGradient, temperatureHeatWeights, 6);
+ColorScale brewingUnitTempGradient(heatGradient, brewingUnitTemperatureHeatWeights, 6);
+ColorScale pressureGradient(heatGradient, pressureHeatWeights, 6);
+ColorScale waterLevelGradient(waterLevelGradientColors, waterLevelHeatWeights, 2);
 
 hw_timer_t *heatingTimer = NULL;
 
@@ -442,7 +442,7 @@ void lvglUpdateTaskFunc(void *parameter)
   }
 }
 
-BluetoothSerial bt;
+//BluetoothSerial bt;
 
 TaskHandle_t lvglUpdateTask;
 
@@ -494,6 +494,7 @@ bool writeConfig(const struct Qm3032Config &config)
   return false;
 }
 
+#if 0
 uint32_t pairingCode = 0;
 
 void BTConfirmRequestCallback(uint32_t numVal) 
@@ -523,7 +524,7 @@ uint32_t pairingState = 0;
 #define PAIRING_STATE_WAIT_REMOTE_CONFIRM         3
 #define PAIRING_STATE_SUCCESS                     4
 #define PAIRING_STATE_FAILURE                     5
-
+#endif
 Qm3032Config config;
 
 void readyMelody()
@@ -558,8 +559,9 @@ bool probeDevice(TwoWire &wire, uint8_t address) {
 
 void setup()
 {
-  Serial.begin(9600);
-
+  Serial.begin(115200);
+  delay(1000);
+Serial.printf("init spiffs\n");
   SPIFFS.begin();
 
   pinMode(PIN_INFUSE_SWITCH, INPUT);
@@ -574,7 +576,9 @@ Serial.printf("1\n");
 
   if (infusing || steam)
   {
+#if 0
     pairingState = PAIRING_STATE_WAITING;
+#endif
   }
   else
   {
@@ -587,6 +591,7 @@ Serial.printf("1\n");
     Serial.printf("Read config failed\n");
   }
 
+#if 0
   bt.enableSSP();
 Serial.printf("2\n");
 
@@ -609,7 +614,7 @@ Serial.printf("2\n");
 
     return;
   }
-
+#endif
 	pinMode(PIN_FLOW_METER, INPUT_PULLDOWN);
 
 Serial.printf("3\n");
@@ -646,10 +651,10 @@ Serial.printf("4\n");
 
   setTemperature(config.temperature);
   setBrewingUnitTemperature(config.brewingUnitTemperature);
-
+#if 0
   bt.onConfirmRequest(BTIgnoreRequestCallback);
   bt.begin(config.btDeviceName, false);
-
+#endif
   flowCounter.begin();
 
 Serial.printf("5\n");
@@ -798,6 +803,7 @@ void updateUi()
 
 void processBt()
 {
+#if 0  
   if (bt.available())
   {
     char buf[512];
@@ -1000,10 +1006,12 @@ void processBt()
       }
     }
   }
+#endif
 }
 
 void loopPairing()
 {
+#if 0
   bool confirm = false;
 
   if (pairingState == PAIRING_STATE_SUCCESS || pairingState == PAIRING_STATE_FAILURE)
@@ -1090,6 +1098,7 @@ void loopPairing()
 
   lv_timer_handler();
   delay(100);
+#endif
 }
 
 void loop()
@@ -1102,13 +1111,14 @@ void loop()
   {
     digitalWrite(PIN_GC9A01_BL, 1);
   }
-
+#if 0
   if (pairingState != 0)
   {
     loopPairing();
     cycle++;
     return;
   }
+#endif
 
   if (steam)
   {
@@ -1352,10 +1362,14 @@ void loop()
       readyCycleCount++;
     }
 
-    processBt();
+    //processBt();
   }
 
   cycle++;
+
+if (cycle%25==0) {
+Serial.printf("zero cross count: %d\n", zeroCrossDetector.count);
+}
 
   unsigned int nextLoopTime = startupTime + cycle * CYCLE_LENGTH;
   unsigned int now = millis();

@@ -19,8 +19,7 @@ private:
     uint8_t pin;
     pcnt_unit_handle_t pcntUnit;
     pcnt_channel_handle_t pcntChannel;
-    uint32_t overflowCounter;
-
+    
     void onInterrupt();
     static void onInterruptArg(void *arg);
 };

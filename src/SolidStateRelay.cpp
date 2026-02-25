@@ -1,6 +1,6 @@
 #include "SolidStateRelay.h"
 
-SolidStateRelay::SolidStateRelay(uint8_t pin, ZeroCrossDetector &zeroCrossDetector) : 
+SolidStateRelay::SolidStateRelay(uint8_t pin, AcZeroCrossDetector &zeroCrossDetector) : 
     pin(pin), zeroCrossDetector(zeroCrossDetector), _requestedCycles(0), _cycles(0)
 {
 }

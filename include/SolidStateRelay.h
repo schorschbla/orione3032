@@ -1,11 +1,11 @@
 #pragma once
 
-#include "ZeroCrossDetector.h"
+#include "AcZeroCrossDetector.h"
 
-class SolidStateRelay : private ZeroCrossListener
+class SolidStateRelay : private AcZeroCrossListener
 {
 public:
-    SolidStateRelay(uint8_t triacPin, ZeroCrossDetector &zeroCrossDetector);
+    SolidStateRelay(uint8_t triacPin, AcZeroCrossDetector &zeroCrossDetector);
     ~SolidStateRelay();
 
     void begin();
@@ -14,7 +14,7 @@ public:
     void setCycles(uint32_t cycles, boolean reset = true);
 
 private:
-    ZeroCrossDetector &zeroCrossDetector;
+    AcZeroCrossDetector &zeroCrossDetector;
     uint8_t pin;
     uint32_t _requestedCycles;
     uint32_t _cycles;

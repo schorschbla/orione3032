@@ -1,8 +1,8 @@
-#include "Gradient.h"
+#include "ColorScale.h"
 
 #include <algorithm> 
 
-Gradient::Gradient(const unsigned int *rgb, const float *weights, unsigned char length) :
+ColorScale::ColorScale(const unsigned int *rgb, const float *weights, unsigned char length) :
     rgb(rgb), weights(weights), length(length)
 {
 }
@@ -19,7 +19,7 @@ inline unsigned int mixRgb(unsigned int left, unsigned int right, float ratio)
         (mix((left >> 16) & 0xff, (right >> 16) & 0xff, ratio) << 16);
 }
 
-unsigned int Gradient::getRgb(float value) const
+unsigned int ColorScale::getRgb(float value) const
 {
     unsigned int pos = 0;
     while (pos < length - 1 && value > weights[pos])
