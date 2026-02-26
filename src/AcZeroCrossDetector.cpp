@@ -11,11 +11,6 @@ AcZeroCrossDetector::~AcZeroCrossDetector()
     end();
 }
 
-IRAM_ATTR void onInterruptArg(void *arg)
-{
-    static_cast<AcZeroCrossDetector*>(arg)->onInterrupt();
-}
-
 void AcZeroCrossDetector::begin()
 {
 	pinMode(pin, INPUT_PULLDOWN);
@@ -62,7 +57,7 @@ bool AcZeroCrossDetector::removeListener(AcZeroCrossListener *listener)
     return false;
 }
 
-IRAM_ATTR void AcZeroCrossDetector::onInterrupt()
+void AcZeroCrossDetector::onInterrupt()
 {
     uint32_t time = micros();
 	if (lastZeroCrossTime == 0 || time - lastZeroCrossTime > ZeroCrossThresholdUs)
@@ -77,4 +72,9 @@ IRAM_ATTR void AcZeroCrossDetector::onInterrupt()
         }
         lastZeroCrossTime = time;
     }
+}
+
+void AcZeroCrossDetector::onInterruptArg(void *arg)
+{
+    static_cast<AcZeroCrossDetector*>(arg)->onInterrupt();
 }

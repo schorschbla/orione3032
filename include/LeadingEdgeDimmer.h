@@ -11,15 +11,15 @@ public:
     void begin();
     void end();
 
-    void setLevel(uint8_t level);
+    void setPowerLevel(double level);
 
 private:
     AcZeroCrossDetector &zeroCrossDetector;
-    uint32_t leadingEdgeDelay;
+    uint32_t leadingEdgeLengthMicros;
     uint8_t pin;
     hw_timer_t *timer;
 
-    virtual void onZeroCross();
-    void onTimerInterrupt();
-    friend void onTimerInterruptArg(void *arg);
+    IRAM_ATTR virtual void onZeroCross();
+    IRAM_ATTR void onTimerInterrupt();
+    IRAM_ATTR static void onTimerInterruptArg(void *arg);
 };

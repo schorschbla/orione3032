@@ -16,8 +16,8 @@ int PulseCounter::begin()
 
     pcnt_unit_config_t unit_config = 
     {
-        .low_limit = 0,
-        .high_limit = UINT16_MAX,
+        .low_limit = -1,
+        .high_limit = INT16_MAX,
         .flags = 
         {
             .accum_count = 1,

@@ -28,6 +28,6 @@ private:
     uint32_t lastZeroCrossTime;
     AcZeroCrossListener* listeners[MAX_ZEROCROSS_LISTENERS];
 
-    void onInterrupt();
-    friend void onInterruptArg(void *arg);
+    IRAM_ATTR void onInterrupt();
+    IRAM_ATTR static void onInterruptArg(void *arg);
 };

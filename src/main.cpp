@@ -20,7 +20,7 @@
 #include "MedianAverage.h"
 #include "JitterFilter.h"
 
-//lv_font_conv  --no-compress --no-prefilter --bpp 4 --size 20 --font Montserrat-Medium.ttf -r 0x20-0x7f,0xdf,0xe4,0xf6,0xfc,0xc4,0xd6,0xdc,0xb0  --font FontAwesome5-Solid+Brands+Regular.woff -r 61441,61448,61451,61452,61452,61453,61457,61459,61461,61465,61468,61473,61478,61479,61480,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61587,61589,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61787,61931,62016,62017,62018,62019,62020,62087,62099,62212,62189,62810,63426,63650,62033,61507,62919 --format lvgl -o lv_font_my_montserrat_20.c --force-fast-kern-format
+// for SIZE in 20 32 36 40 48; do ./node_modules/.bin/lv_font_conv --no-compress --no-prefilter --bpp 4 --size ${SIZE} --font Montserrat-Medium.ttf -r 0x20-0x7f,0xdf,0xe4,0xf6,0xfc,0xc4,0xd6,0xdc,0xb0  --font FontAwesome5-Solid+Brands+Regular.woff -r 61441,61448,61451,61452,61452,61453,61457,61459,61461,61465,61468,61473,61478,61479,61480,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61587,61589,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61787,61931,62016,62017,62018,62019,62020,62087,62099,62212,62189,62810,63426,63650,62033,61507,62919,62172 --format lvgl -o src/lv_font_my_montserrat_${SIZE}.c --force-fast-kern-format; done
 
 extern const lv_font_t lv_font_my_montserrat_48;
 extern const lv_font_t lv_font_my_montserrat_40;
@@ -267,7 +267,7 @@ void initInfuseUi()
 
   infuseVolumeLabel = lv_label_create(infuseScreen);
   lv_obj_set_style_text_font(infuseVolumeLabel, &lv_font_my_montserrat_36, 0);
-  lv_obj_set_width(infuseVolumeLabel, 150);
+  lv_obj_set_width(infuseVolumeLabel, 200);
   lv_obj_set_style_text_align(infuseVolumeLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(infuseVolumeLabel, LV_ALIGN_CENTER, 0, 0);
 
@@ -508,6 +508,9 @@ void setup()
 {
   Serial.begin(115200);
 
+  analogWriteFrequency(PIN_GC9A01_BL, 2000);
+  analogWrite(PIN_GC9A01_BL, 0);
+
   SPIFFS.begin();
 
   pinMode(PIN_INFUSE_SWITCH, INPUT);
@@ -561,10 +564,10 @@ void setup()
   temperaturePid.SetSampleTime(PID_INTERVAL_CYCLES * CYCLE_LENGTH);
   temperaturePid.SetMode(AUTOMATIC);
 
+  flowCounter.begin();
+
   setTemperature(config.temperature);
   setBrewingUnitTemperature(config.brewingUnitTemperature);
-
-  flowCounter.begin();
 
   startupTime = millis();
 }
@@ -644,7 +647,7 @@ void updateUi()
 
 
     float volume = (flowCounter.ticks() - flowCounterInfusionStart) * FLOW_ML_PER_TICK;
-    lv_label_set_text_fmt(infuseVolumeLabel, (hotWater && coldFlush) ? "%.1f ml (kühl)" : "%.1f ml", volume);
+    lv_label_set_text_fmt(infuseVolumeLabel, (hotWater && coldFlush) ? "\xEF\x8B\x9C %.1f ml" : "%.1f ml", volume);
   }
   else
   {
@@ -782,7 +785,7 @@ void updateUi()
 
       setTemperature(config.temperature);
 
-      pumpDimmer.setLevel(0);
+      pumpDimmer.setPowerLevel(0);
       valveDeadline = millis() + (millis() - infuseStart < 10000 ? 20000 : 2000);
 
       currentSplashPos = 0;
@@ -799,7 +802,7 @@ void updateUi()
     }
     else
     {
-      pumpDimmer.setLevel(0);
+      pumpDimmer.setPowerLevel(0);
       digitalWrite(PIN_VALVE_AC, LOW);
     }
   }
@@ -817,7 +820,7 @@ void updateUi()
     else
     {
       setTemperature(config.temperature);
-      pumpDimmer.setLevel(0);
+      pumpDimmer.setPowerLevel(0);
       digitalWrite(PIN_VALVE_AC, LOW);
     }
   }
@@ -857,22 +860,22 @@ void updateUi()
         }
       }
 
-      pumpDimmer.setLevel(pumpValue * UINT8_MAX);
+      pumpDimmer.setPowerLevel(pumpValue);
   }
   else if (steam)
   {
       if (cycle % STEAM_WATER_SUPPLY_INTERVAL_CYCLES == 0 && temperatureIs > STEAM_WATER_SUPPLY_MIN_TEMPERATURE)
       {
-         pumpDimmer.setLevel(config.preinfusionPumpPower * UINT8_MAX);
+         pumpDimmer.setPowerLevel(config.preinfusionPumpPower);
       }
       else if (cycle % STEAM_WATER_SUPPLY_INTERVAL_CYCLES == config.steamWaterSupplyCycles)
       {
-         pumpDimmer.setLevel(0);
+         pumpDimmer.setPowerLevel(0);
       }
   }
   else if (hotWater)
   {
-      pumpDimmer.setLevel((coldFlush ? config.preinfusionPressure : config.hotWaterPumpPower) * UINT8_MAX);
+      pumpDimmer.setPowerLevel(config.preinfusionPumpPower);
   }
   else
   {

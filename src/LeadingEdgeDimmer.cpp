@@ -1,9 +1,10 @@
 #include "LeadingEdgeDimmer.h"
 
-const uint32_t CycleLength = 1000;
+const uint32_t MicrosPerSecond = 1000000;
+const uint32_t CycleLengthMicros = 10000;
 
 LeadingEdgeDimmer::LeadingEdgeDimmer(uint8_t pin, AcZeroCrossDetector &zeroCrossDetector) : 
-    pin(pin), zeroCrossDetector(zeroCrossDetector), leadingEdgeDelay(CycleLength), timer(nullptr)
+    pin(pin), zeroCrossDetector(zeroCrossDetector), leadingEdgeLengthMicros(CycleLengthMicros), timer(nullptr)
 {
 }
 
@@ -12,17 +13,12 @@ LeadingEdgeDimmer::~LeadingEdgeDimmer()
     end();
 }
 
-IRAM_ATTR void onTimerInterruptArg(void *arg)
-{
-    static_cast<LeadingEdgeDimmer*>(arg)->onTimerInterrupt();
-}
-
 void LeadingEdgeDimmer::begin()
 {
   	pinMode(pin, OUTPUT);
 
-	timer = timerBegin(10000);
-	timerAttachInterruptArg(timer, &onTimerInterruptArg, this);
+	timer = timerBegin(MicrosPerSecond);
+	timerAttachInterruptArg(timer, &LeadingEdgeDimmer::onTimerInterruptArg, this);
 
     zeroCrossDetector.addListener(this);
 }
@@ -38,29 +34,35 @@ void LeadingEdgeDimmer::end()
     }
 }
 
-void LeadingEdgeDimmer::setLevel(uint8_t level)
+void LeadingEdgeDimmer::setPowerLevel(double level)
 {
-    leadingEdgeDelay = CycleLength - sin((double)level / UINT8_MAX * PI / 2) * CycleLength;
+    level = constrain(level, 0.0, 1.0);
+    leadingEdgeLengthMicros = acos(2.0 * level - 1.0) / PI * CycleLengthMicros;
 }
 
-IRAM_ATTR void LeadingEdgeDimmer::onZeroCross()
+void LeadingEdgeDimmer::onZeroCross()
 {
-    if (leadingEdgeDelay != 0)
+    if (leadingEdgeLengthMicros != 0)
     {
         digitalWrite(pin, LOW);
-        if (leadingEdgeDelay < CycleLength)
+        if (leadingEdgeLengthMicros < CycleLengthMicros)
         {
             timerRestart(timer);
-            timerAlarm(timer, leadingEdgeDelay, false, 0);
+            timerAlarm(timer, leadingEdgeLengthMicros, false, 0);
         }
     }
     else
     {
-        digitalWrite(PIN_PUMP_AC, HIGH);
+        digitalWrite(pin, HIGH);
     }
 }
 
-IRAM_ATTR void LeadingEdgeDimmer::onTimerInterrupt()
+void LeadingEdgeDimmer::onTimerInterrupt()
 {
     digitalWrite(pin, HIGH);
+}
+
+void LeadingEdgeDimmer::onTimerInterruptArg(void *arg)
+{
+    static_cast<LeadingEdgeDimmer*>(arg)->onTimerInterrupt();
 }
