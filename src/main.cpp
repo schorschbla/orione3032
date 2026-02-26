@@ -8,8 +8,6 @@
 #include <SPIFFS.h>
 #include <PID_v1.h>
 
-#include <BluetoothSerial.h>
-
 #include <vector>
 
 #include "ColorScale.h"
@@ -85,9 +83,9 @@ static float waterLevelHeatWeights[] = { 0.2f, 0.8f };
 
 Gc9a01Display display(GC9A01_SPI_WRITE_FREQUENCY, PIN_GC9A01_SCLK, PIN_GC9A01_MOSI, PIN_GC9A01_DC, PIN_GC9A01_CS, PIN_GC9A01_RST);
 
-IRAM_ATTR AcZeroCrossDetector zeroCrossDetector(PIN_AC_ZEROCROSS);
-IRAM_ATTR SolidStateRelay heatingRelay(PIN_HEATING_AC, zeroCrossDetector);
-IRAM_ATTR LeadingEdgeDimmer pumpDimmer(PIN_PUMP_AC, zeroCrossDetector);
+AcZeroCrossDetector zeroCrossDetector(PIN_AC_ZEROCROSS);
+SolidStateRelay heatingRelay(PIN_HEATING_AC, zeroCrossDetector);
+LeadingEdgeDimmer pumpDimmer(PIN_PUMP_AC, zeroCrossDetector);
 Xdb401PressureSensor pressureSensor(Wire, 20.0);
 Mlx90614TemperatureSensor brewingUnitTemperatureSensor(Wire);
 PulseCounter flowCounter(PIN_FLOW_METER);
@@ -442,8 +440,6 @@ void lvglUpdateTaskFunc(void *parameter)
   }
 }
 
-//BluetoothSerial bt;
-
 TaskHandle_t lvglUpdateTask;
 
 #define CONFIG_VERSION    0x0001
@@ -494,37 +490,6 @@ bool writeConfig(const struct Qm3032Config &config)
   return false;
 }
 
-#if 0
-uint32_t pairingCode = 0;
-
-void BTConfirmRequestCallback(uint32_t numVal) 
-{
-  pairingCode = numVal;
-}
-
-void BTIgnoreRequestCallback(uint32_t numVal) 
-{
-  bt.confirmReply(false);
-}
-
-#define PAIRING_AUTH_SUCCESS          1
-#define PAIRING_AUTH_FAILURE          2
-
-uint32_t pairingAuthState = 0;
-
-void BTAuthCompleteCallback(boolean success) 
-{
-  pairingAuthState = success ? PAIRING_AUTH_SUCCESS : PAIRING_AUTH_FAILURE;
-}
-
-uint32_t pairingState = 0;
-
-#define PAIRING_STATE_WAITING                     1
-#define PAIRING_STATE_CONFIRM                     2
-#define PAIRING_STATE_WAIT_REMOTE_CONFIRM         3
-#define PAIRING_STATE_SUCCESS                     4
-#define PAIRING_STATE_FAILURE                     5
-#endif
 Qm3032Config config;
 
 void readyMelody()
@@ -532,24 +497,6 @@ void readyMelody()
   tone(PIN_BUZZER, 1056, 150);
   tone(PIN_BUZZER, 0, 20);
   tone(PIN_BUZZER, 792, 150);
-}
-
-void getDefaultBtDeviceName(BluetoothSerial &bt, char* out, size_t length)
-{
-  uint8_t mac[ESP_BD_ADDR_LEN];
-  int pos;
-
-  bt.begin();
-  bt.getBtAddress(mac);
-  bt.end();
-
-  strncpy(out, "Qm3032-", length - 1);
-  pos = strlen(out);
-
-  for (int i = 0; i < 6 && pos < length - 1; ++i)
-  {
-    pos += sprintf(out + pos, "%02x", mac[i]);
-  }
 }
 
 bool probeDevice(TwoWire &wire, uint8_t address) {
@@ -560,25 +507,20 @@ bool probeDevice(TwoWire &wire, uint8_t address) {
 void setup()
 {
   Serial.begin(115200);
-  delay(1000);
-Serial.printf("init spiffs\n");
+
   SPIFFS.begin();
 
   pinMode(PIN_INFUSE_SWITCH, INPUT);
   pinMode(PIN_STEAM_SWITCH, INPUT);
   pinMode(PIN_HOTWATER_SWITCH, INPUT);
 
-  pinMode(PIN_GC9A01_BL, OUTPUT);
-Serial.printf("1\n");
   infusing = digitalRead(PIN_INFUSE_SWITCH);
   steam = digitalRead(PIN_STEAM_SWITCH);
   hotWater = digitalRead(PIN_HOTWATER_SWITCH);
 
   if (infusing || steam)
   {
-#if 0
-    pairingState = PAIRING_STATE_WAITING;
-#endif
+    // TODO pairing/bonding
   }
   else
   {
@@ -590,35 +532,6 @@ Serial.printf("1\n");
   {
     Serial.printf("Read config failed\n");
   }
-
-#if 0
-  bt.enableSSP();
-Serial.printf("2\n");
-
-  if (config.btDeviceName[0] == 0)
-  {
-    getDefaultBtDeviceName(bt, config.btDeviceName, sizeof(config.btDeviceName));
-    writeConfig(config);
-  }
-
-  if (pairingState != 0)
-  {
-    pairingState = PAIRING_STATE_WAITING;
-    bt.onConfirmRequest(BTConfirmRequestCallback);
-    bt.onAuthComplete(BTAuthCompleteCallback);
-    bt.begin(config.btDeviceName);
-
-    initLvgl();
-    initPairingUi(config.btDeviceName);
-    lv_scr_load(pairingWaitScreen);
-
-    return;
-  }
-#endif
-	pinMode(PIN_FLOW_METER, INPUT_PULLDOWN);
-
-Serial.printf("3\n");
-
 
   Wire.begin();
 
@@ -642,7 +555,6 @@ Serial.printf("3\n");
   thermo.autoConvert(true);
   thermo.enableBias(true);
 
-Serial.printf("4\n");
   pinMode(PIN_VALVE_AC, OUTPUT);
 
   temperaturePid.SetOutputLimits(0, PID_MAX_OUTPUT);
@@ -651,13 +563,9 @@ Serial.printf("4\n");
 
   setTemperature(config.temperature);
   setBrewingUnitTemperature(config.brewingUnitTemperature);
-#if 0
-  bt.onConfirmRequest(BTIgnoreRequestCallback);
-  bt.begin(config.btDeviceName, false);
-#endif
+
   flowCounter.begin();
 
-Serial.printf("5\n");
   startupTime = millis();
 }
 
@@ -801,307 +709,7 @@ void updateUi()
   }
 }
 
-void processBt()
-{
-#if 0  
-  if (bt.available())
-  {
-    char buf[512];
-    size_t read = bt.readBytes(buf, sizeof(buf));
-    if (read > 0)
-    {
-      while (read > 0 && (buf[read - 1] == '\n' || buf[read - 1] == '\r'))
-      {
-        buf[read - 1] = 0;
-        read--;
-      }
-      
-      if (!strcmp("get config", buf))
-      {
-        bt.printf("temp\t%f\nwaterTemp\t%f\npumpPower\t%f\npreinfusionPumpPower\t%f\nhotWaterPumpPower\t%f\nsteamTemp\t%f\nsteamWaterSupplyCycles\t%d\n maxInfusionVolume\t%f\npreinfusionPressure\t%f\npreinfusionDuration\t%d\nbrewingUnitTemp\t%f\nvolumeBasedHeatingFactor\t%f\n", 
-          config.temperature, config.waterTemperature, config.pumpPower, config.preinfusionPumpPower, config.hotWaterPumpPower, config.steamTemperature, config.steamWaterSupplyCycles, config.maxInfusionVolume, config.preinfusionPressure, config.preinfusionDuration, config.brewingUnitTemperature, config.volumeBasedHeatingFactor);
-      }
-      else if (!strcmp("get waterlevel", buf))
-      {
-        bt.printf("%d\n", waterLevel);
-      }
-      else
-      {
-        float value;
-        int intValue;
-        if (sscanf(buf, "set temp %f", &value) > 0)
-        {
-          if (value > 80 && value < 98)
-          {
-            config.temperature = value;
-            writeConfig(config);
-            setTemperature(config.temperature);
-          }
-          else
-          {
-            bt.printf("error range 80.0 98.0\n");
-          }
-        }
-        else if (sscanf(buf, "set pumpPower %f", &value) > 0)
-        {
-          if (value >= config.preinfusionPumpPower && value <= 1.0)
-          {
-            config.pumpPower = value;
-            writeConfig(config);
-          }
-          else
-          {
-            bt.printf("error range %f 1.0\n", config.preinfusionPumpPower);
-          }
-        }
-        else if (sscanf(buf, "set preinfusionPumpPower %f", &value) > 0)
-        {
-          if (value >= 0.3 && value <= 1.0)
-          {
-            config.preinfusionPumpPower = value;
-            writeConfig(config);
-          }
-          else
-          {
-            bt.printf("error range 0.3 1.0\n");
-          }
-        }        
-        else if (sscanf(buf, "set hotWaterPumpPower %f", &value) > 0)
-        {
-          if (value >= 0.3 && value <= 1.0)
-          {
-            config.hotWaterPumpPower = value;
-            writeConfig(config);
-          }
-          else
-          {
-            bt.printf("error range 0.3 1.0\n");
-          }
-        }        
-        else if (sscanf(buf, "set steamWaterSupplyCycles %d", &intValue) > 0)
-        {
-          if (intValue >= 1 && value <= STEAM_WATER_SUPPLY_INTERVAL_CYCLES)
-          {
-            config.steamWaterSupplyCycles = intValue;
-            writeConfig(config);
-          }
-          else
-          {
-            bt.printf("error range 1 %d\n", STEAM_WATER_SUPPLY_INTERVAL_CYCLES);
-          }
-        }
-        else if (sscanf(buf, "set steamTemp %f", &value) > 0)
-        {
-          if (value >= 105.0 && value < 120.0)
-          {
-            config.steamTemperature = value;
-            writeConfig(config);
-          }
-          else
-          {
-            bt.printf("error range 105 120\n");
-          }
-        }
-        else if (sscanf(buf, "set preinfusionDuration %d", &intValue) > 0)
-        {
-          if (intValue >= 0 && value <= 10000)
-          {
-            config.preinfusionDuration = intValue;
-            writeConfig(config);
-          }
-          else
-          {
-            bt.printf("error range 0 %d\n", 10000);
-          }
-        }
-        else if (sscanf(buf, "set waterTemp %f", &value) > 0)
-        {
-          if (value >= 5.0 && value <= 40.)
-          {
-            config.waterTemperature = value;
-            writeConfig(config);
-          }
-          else
-          {
-            bt.printf("error range %f %f\n", 5.0, 40.0);
-          }
-        }
-        else if (sscanf(buf, "set maxInfusionVolume %f", &value) > 0)
-        {
-          if (value >= 20.0 && value <= 100.0)
-          {
-            config.maxInfusionVolume = value;
-            writeConfig(config);
-          }
-          else
-          {
-            bt.printf("error range %f %f\n", 20.0, 100.0);
-          }
-        }
-        else if (sscanf(buf, "set preinfusionPressure %f", &value) > 0)
-        {
-          if (value >= 1.0 && value <= 4.0)
-          {
-            config.preinfusionPressure = value;
-            writeConfig(config);
-          }
-          else
-          {
-            bt.printf("error range %f %f\n", 1.0, 4.0);
-          }
-        }
-        else if (sscanf(buf, "set brewingUnitTemp %f", &value) > 0)
-        {
-          if (value >= 40.0 && value <= 70.0)
-          {
-            config.brewingUnitTemperature = value;
-            writeConfig(config);
-            setBrewingUnitTemperature(config.brewingUnitTemperature);
-          }
-          else
-          {
-            bt.printf("error range 40.0 70.0\n");
-          }
-        }    
-        else if (sscanf(buf, "set volumeBasedHeatingFactor %f", &value) > 0)
-        {
-          if (value >= 0.0 && value <= 2.0)
-          {
-            config.volumeBasedHeatingFactor = value;
-            writeConfig(config);
-          }
-          else
-          {
-            bt.printf("error range 0.0 2.0\n");
-          }
-        }        
-        else if (sscanf(buf, "set waterLevelMin %d", &intValue) > 0)
-        {
-          if (intValue >= 100 && value <= 300)
-          {
-            config.waterLevelMin = intValue;
-            writeConfig(config);
-          }
-          else
-          {
-            bt.printf("error range 100 300\n");
-          }
-        }
-        else if (sscanf(buf, "set waterLevelMax %d", &intValue) > 0)
-        {
-          if (intValue >= 10 && value <= 100)
-          {
-            config.waterLevelMax = intValue;
-            writeConfig(config);
-          }
-          else
-          {
-            bt.printf("error range 10 100\n");
-          }
-        }
-        else 
-        {
-          bt.printf("Unknown command %s\n", buf);
-        }
-      }
-    }
-  }
-#endif
-}
-
-void loopPairing()
-{
-#if 0
-  bool confirm = false;
-
-  if (pairingState == PAIRING_STATE_SUCCESS || pairingState == PAIRING_STATE_FAILURE)
-  {
-    if (pairingCode != 0)
-    {
-      bt.confirmReply(false);
-      pairingCode = 0;
-    }
-    delay(100);
-    return;
-  }
-  
-  if (infusing != digitalRead(PIN_INFUSE_SWITCH))
-  {
-    infusing = !infusing;
-    confirm = true;
-  }
-
-  if (steam != digitalRead(PIN_STEAM_SWITCH))
-  {
-    steam = !steam;
-    confirm = true;
-  }    
-
-  if (hotWater != digitalRead(PIN_HOTWATER_SWITCH))
-  {
-    hotWater = !hotWater;
-    confirm = true;
-  }    
-
-  if (pairingCode != 0)
-  {
-    if (pairingState == PAIRING_STATE_WAITING)
-    {
-      lv_label_set_text_fmt(pairingPinLabel, "%06lu", pairingCode);
-      lv_scr_load(pairingPinScreen);
-      pairingState = PAIRING_STATE_CONFIRM;
-      pairingCode = 0;
-    }
-    else
-    {
-      pairingState = PAIRING_STATE_FAILURE;
-    }
-  }
-
-  if (pairingAuthState == PAIRING_AUTH_SUCCESS)
-  {
-    if (pairingState == PAIRING_STATE_WAIT_REMOTE_CONFIRM)
-    {
-      pairingState = PAIRING_STATE_SUCCESS;
-      lv_scr_load(pairingSuccessScreen);
-      readyMelody();
-    }
-    else
-    {
-      pairingState = PAIRING_STATE_FAILURE;
-    }
-  } 
-  else if (pairingAuthState == PAIRING_AUTH_FAILURE)
-  {
-    pairingState = PAIRING_STATE_FAILURE;
-  }
-
-  if (confirm)
-  {
-    if (pairingState == PAIRING_STATE_CONFIRM)
-    {
-      bt.confirmReply(true);
-      lv_label_set_text_fmt(confirmHintLabel, "\xef\x89\x91 Warte auf Bestätigung der Gegenstelle...");
-      pairingState = PAIRING_STATE_WAIT_REMOTE_CONFIRM;
-    }
-  }
-
-  if (pairingState == PAIRING_STATE_FAILURE && lv_scr_act() != pairingFailureScreen)
-  {
-    lv_scr_load(pairingFailureScreen);
-  }
-
-  if (pairingState == PAIRING_STATE_FAILURE)
-  {
-    bt.end();
-  }
-
-  lv_timer_handler();
-  delay(100);
-#endif
-}
-
-void loop()
+ void loop()
 {
   if (cycle < 64)
   {
@@ -1109,6 +717,7 @@ void loop()
   }
   else if (cycle == 64)
   {
+    pinMode(PIN_GC9A01_BL, OUTPUT);
     digitalWrite(PIN_GC9A01_BL, 1);
   }
 #if 0
@@ -1361,15 +970,9 @@ void loop()
       }
       readyCycleCount++;
     }
-
-    //processBt();
   }
 
   cycle++;
-
-if (cycle%25==0) {
-Serial.printf("zero cross count: %d\n", zeroCrossDetector.count);
-}
 
   unsigned int nextLoopTime = startupTime + cycle * CYCLE_LENGTH;
   unsigned int now = millis();
