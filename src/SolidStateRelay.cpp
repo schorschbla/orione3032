@@ -28,7 +28,7 @@ void SolidStateRelay::setCycles(uint32_t cycles, boolean reset)
 
 IRAM_ATTR void SolidStateRelay::onZeroCross()
 {
-    if (_requestedCycles < _cycles)
+    if (_requestedCycles > _cycles)
     {
         digitalWrite(pin, HIGH);
         _cycles++;
