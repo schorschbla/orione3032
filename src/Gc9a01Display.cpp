@@ -1,10 +1,5 @@
 #include "Gc9a01Display.h"
 
-void flushDisp(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p)
-{
-    static_cast<Gc9a01Display *>(disp->user_data)->flush(area, color_p);
-}
-
 Gc9a01Display::Gc9a01Display(uint32_t freqWrite, int16_t pinSclk, int16_t pinMosi, int16_t pinDc, int16_t pinCs, int16_t pinRst) : excluded({0, 0, 0, 0})
 {
     lgfx::Bus_SPI::config_t busConfig = bus.config();
@@ -80,4 +75,9 @@ void Gc9a01Display::flush(const lv_area_t *area, lv_color_t *color_p)
 
     endWrite();
     lv_disp_flush_ready(&disp_drv);
+}
+
+void Gc9a01Display::flushDisp(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p)
+{
+    static_cast<Gc9a01Display *>(disp->user_data)->flush(area, color_p);
 }

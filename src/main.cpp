@@ -10,7 +10,9 @@
 
 #include <vector>
 
+#include "Constants.h"
 #include "ColorScale.h"
+#include "Fonts.h"
 #include "Gc9a01Display.h"
 #include "SolidStateRelay.h"
 #include "LeadingEdgeDimmer.h"
@@ -20,78 +22,18 @@
 #include "MedianAverage.h"
 #include "JitterFilter.h"
 
-// for SIZE in 20 32 36 40 48; do ./node_modules/.bin/lv_font_conv --no-compress --no-prefilter --bpp 4 --size ${SIZE} --font Montserrat-Medium.ttf -r 0x20-0x7f,0xdf,0xe4,0xf6,0xfc,0xc4,0xd6,0xdc,0xb0  --font FontAwesome5-Solid+Brands+Regular.woff -r 61441,61448,61451,61452,61452,61453,61457,61459,61461,61465,61468,61473,61478,61479,61480,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61587,61589,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61787,61931,62016,62017,62018,62019,62020,62087,62099,62212,62189,62810,63426,63650,62033,61507,62919,62172 --format lvgl -o src/lv_font_my_montserrat_${SIZE}.c --force-fast-kern-format; done
 
-extern const lv_font_t lv_font_my_montserrat_48;
-extern const lv_font_t lv_font_my_montserrat_40;
-extern const lv_font_t lv_font_my_montserrat_36;
-extern const lv_font_t lv_font_my_montserrat_32;
-extern const lv_font_t lv_font_my_montserrat_20;
+Gc9a01Display display(Gc9a01SpiWriteFreq, PinGc9a01Sclk, PinGc9a01Mosi, PinGc9a01Dc, PinGc9a01Cs, PinGc9a01Rst);
 
-#define PID_P                             2.6
-#define PID_I                             0.05
-#define PID_D                             30
-
-#define PID_MAX_OUTPUT                    100.0
-
-#define TEMPERATURE_SAFETY_GUARD                    130
-
-#define TEMPERATURE_MAX                   98
-
-#define WARMUP_TEMPERATURE_THRESHOLD      6
-
-#define PUMP_RAMPUP_TIME                  4000
-
-#define XDB401_MAX_BAR                    20
-#define XDB401_READ_INTERVAL_CYCLES       1
-
-#define CYCLE_LENGTH                      40
-#define MAX31856_READ_INTERVAL_CYCLES     2
-
-#define STEAM_WATER_SUPPLY_MIN_TEMPERATURE    105
-#define STEAM_WATER_SUPPLY_INTERVAL_CYCLES    32
-
-#define FLOW_PROCESS_INTERVAL_CYCLES      1
-#define FLOW_ML_PER_TICK                  0.1
-
-#define SPLASH_IMAGE_DURATION             10000
-
-#define MAX31865_RREF      430.0
-#define MAX31865_RNOMINAL  100.0
-
-#define PID_INTERVAL_CYCLES     25
-
-#define HEATING_ENERGY_PER_ML_AND_KELVIN_WATTSECONDS   5.76
-#define HEATING_OUTPUT_WATTS  1000
-#define HEATING_CYCLE_LENGTH    10
-
-#define READY_NOTIFICATION_INTERVAL 60000
-
-#define BLUE 0x1e64ae
-#define TURQUOISE 0x2c9699
-#define GREEN 0x8eb333
-#define YELLOW 0xf3ce2f
-#define RED 0xd42223
-
-unsigned int const heatGradient[] = { 0x7f7f7f, BLUE, TURQUOISE, GREEN, YELLOW, RED };
-static float pressureHeatWeights[] = { 1.0f, 5.0f, 2.0f, 2.0f, 1.0f };
-static float temperatureHeatWeights[] = { 5.0f, 0.0f, 2.0f, 2.0f, 3.0f };
-static float brewingUnitTemperatureHeatWeights[] = { 5.0f, 0.0f, 5.0f, 60.0f, 15.0f };
-
-unsigned int const waterLevelGradientColors[] = {  RED, YELLOW,  GREEN };
-static float waterLevelHeatWeights[] = { 0.2f, 0.8f };
-
-Gc9a01Display display(GC9A01_SPI_WRITE_FREQUENCY, PIN_GC9A01_SCLK, PIN_GC9A01_MOSI, PIN_GC9A01_DC, PIN_GC9A01_CS, PIN_GC9A01_RST);
-
-AcZeroCrossDetector zeroCrossDetector(PIN_AC_ZEROCROSS);
-SolidStateRelay heatingRelay(PIN_HEATING_AC, zeroCrossDetector);
-LeadingEdgeDimmer pumpDimmer(PIN_PUMP_AC, zeroCrossDetector);
+AcZeroCrossDetector zeroCrossDetector(PinAcZerocross);
+SolidStateRelay heatingRelay(PinHeatingAc, zeroCrossDetector);
+LeadingEdgeDimmer pumpDimmer(PinPumpAc, zeroCrossDetector);
 Xdb401PressureSensor pressureSensor(Wire, 20.0);
 Mlx90614TemperatureSensor brewingUnitTemperatureSensor(Wire);
-PulseCounter flowCounter(PIN_FLOW_METER);
+PulseCounter flowCounter(PinFlowMeter);
 
 SPIClass hspi(HSPI);
-Adafruit_MAX31865 thermo(PIN_MAX31865_SELECT, &hspi);
+Adafruit_MAX31865 thermo(PinMax31865Cs, &hspi);
 Adafruit_VL53L0X waterLevelSensor = Adafruit_VL53L0X();
 
 DataTomeMvAvg<float, double> temperateAvg(20), brewingUnitTemperateAvg(20), pressureAvg(25), flowAvg(10);
@@ -100,14 +42,12 @@ MedianAverage<uint8_t, 9> waterLevelAverage;
 
 double temperatureSet, temperatureIs, pidOut, brewingUnitTemperature;
 
-PID temperaturePid(&temperatureIs, &pidOut, &temperatureSet, PID_P, 0, 0, DIRECT);
+PID temperaturePid(&temperatureIs, &pidOut, &temperatureSet, DefaultPidP, 0, 0, DIRECT);
 
 ColorScale tempGradient(heatGradient, temperatureHeatWeights, 6);
 ColorScale brewingUnitTempGradient(heatGradient, brewingUnitTemperatureHeatWeights, 6);
 ColorScale pressureGradient(heatGradient, pressureHeatWeights, 6);
 ColorScale waterLevelGradient(waterLevelGradientColors, waterLevelHeatWeights, 2);
-
-hw_timer_t *heatingTimer = NULL;
 
 JitterFilter<int, 3> temperatureFlappingFilter(5000);
 JitterFilter<int, 3> brewingUnitTemperatureFlappingFilter(5000);
@@ -494,9 +434,9 @@ Qm3032Config config;
 
 void readyMelody()
 {
-  tone(PIN_BUZZER, 1056, 150);
-  tone(PIN_BUZZER, 0, 20);
-  tone(PIN_BUZZER, 792, 150);
+  tone(PinBuzzer, 1056, 150);
+  tone(PinBuzzer, 0, 20);
+  tone(PinBuzzer, 792, 150);
 }
 
 bool probeDevice(TwoWire &wire, uint8_t address) {
@@ -508,18 +448,18 @@ void setup()
 {
   Serial.begin(115200);
 
-  analogWriteFrequency(PIN_GC9A01_BL, 2000);
-  analogWrite(PIN_GC9A01_BL, 0);
+  analogWriteFrequency(PinGc9a01Backlight, 2000);
+  analogWrite(PinGc9a01Backlight, 0);
 
   SPIFFS.begin();
 
-  pinMode(PIN_INFUSE_SWITCH, INPUT);
-  pinMode(PIN_STEAM_SWITCH, INPUT);
-  pinMode(PIN_HOTWATER_SWITCH, INPUT);
+  pinMode(PinInfuseSwitch, INPUT);
+  pinMode(PinSteamSwitch, INPUT);
+  pinMode(PinHotwaterSwitch, INPUT);
 
-  infusing = digitalRead(PIN_INFUSE_SWITCH);
-  steam = digitalRead(PIN_STEAM_SWITCH);
-  hotWater = digitalRead(PIN_HOTWATER_SWITCH);
+  infusing = digitalRead(PinInfuseSwitch);
+  steam = digitalRead(PinSteamSwitch);
+  hotWater = digitalRead(PinHotwaterSwitch);
 
   if (infusing || steam)
   {
@@ -551,17 +491,17 @@ void setup()
     waterLevelSensor.startRange();
   }
 
-  hspi.begin(PIN_MAX31865_CLOCK, PIN_MAX31865_MISO, PIN_MAX31865_MOSI);
+  hspi.begin(PinMax31865Sclk, PinMax31865Miso, PinMax31865Mosi);
   
   thermo.begin(MAX31865_3WIRE);
   thermo.enable50Hz(true);
   thermo.autoConvert(true);
   thermo.enableBias(true);
 
-  pinMode(PIN_VALVE_AC, OUTPUT);
+  pinMode(PinValveAc, OUTPUT);
 
-  temperaturePid.SetOutputLimits(0, PID_MAX_OUTPUT);
-  temperaturePid.SetSampleTime(PID_INTERVAL_CYCLES * CYCLE_LENGTH);
+  temperaturePid.SetOutputLimits(0, PidMaxOutput);
+  temperaturePid.SetSampleTime(PID_INTERVAL_CYCLES * CycleLengthMillis);
   temperaturePid.SetMode(AUTOMATIC);
 
   flowCounter.begin();
@@ -646,7 +586,7 @@ void updateUi()
     lv_obj_set_style_arc_color(infusePressureArc, lv_color_hex(pressureGradient.getRgb(displayedPressure)), LV_PART_INDICATOR | LV_STATE_DEFAULT );
 
 
-    float volume = (flowCounter.ticks() - flowCounterInfusionStart) * FLOW_ML_PER_TICK;
+    float volume = (flowCounter.ticks() - flowCounterInfusionStart) * FlowMeterVolumePerTickMilliliters;
     lv_label_set_text_fmt(infuseVolumeLabel, (hotWater && coldFlush) ? "\xEF\x8B\x9C %.1f ml" : "%.1f ml", volume);
   }
   else
@@ -668,7 +608,7 @@ void updateUi()
       lv_label_set_text_fmt(standbyTemperatureLabel, "%d°", filteredTemperature / 10);
     }
 
-    lv_arc_set_angles(standbyTemperatureArc, 0, temperatureAvgDegree / TEMPERATURE_SAFETY_GUARD * 250);
+    lv_arc_set_angles(standbyTemperatureArc, 0, temperatureAvgDegree / TemperatureSafetyGuardCelsius * 250);
     lv_obj_set_style_arc_color(standbyTemperatureArc, lv_color_hex(tempGradient.getRgb(temperatureAvgDegree)), LV_PART_INDICATOR | LV_STATE_DEFAULT );
 
     int filteredBrewingUnitTemperature = brewingUnitTemperatureFlappingFilter.apply((int)brewingUnitTemperatureAvgDegree);
@@ -716,29 +656,21 @@ void updateUi()
 {
   if (cycle < 64)
   {
-    analogWrite(PIN_GC9A01_BL, cycle * 4);
+    analogWrite(PinGc9a01Backlight, cycle * 4);
   }
   else if (cycle == 64)
   {
-    pinMode(PIN_GC9A01_BL, OUTPUT);
-    digitalWrite(PIN_GC9A01_BL, 1);
+    pinMode(PinGc9a01Backlight, OUTPUT);
+    digitalWrite(PinGc9a01Backlight, 1);
   }
-#if 0
-  if (pairingState != 0)
-  {
-    loopPairing();
-    cycle++;
-    return;
-  }
-#endif
 
   if (steam)
   {
-    if (cycle % MAX31856_READ_INTERVAL_CYCLES == 0)
+    if (cycle % Max31856ReadIntervalCycles == 0)
     {
       if (temperatureIs < config.steamTemperature)
       {
-        heatingRelay.setCycles(MAX31856_READ_INTERVAL_CYCLES * CYCLE_LENGTH / HEATING_CYCLE_LENGTH);
+        heatingRelay.setCycles(Max31856ReadIntervalCycles * CycleLengthMillis / HEATING_CYCLE_LENGTH);
       }
       else
       {
@@ -748,11 +680,11 @@ void updateUi()
   }
   else if (!infusing && !hotWater)
   {
-    if (temperatureIs < TEMPERATURE_MAX)
+    if (temperatureIs < MaxTemperatureCelsius)
     {        
       if (temperaturePid.Compute())
       {
-        heatingRelay.setCycles(pidOut / PID_MAX_OUTPUT * (PID_INTERVAL_CYCLES * CYCLE_LENGTH / HEATING_CYCLE_LENGTH));
+        heatingRelay.setCycles(pidOut / PidMaxOutput * (PID_INTERVAL_CYCLES * CycleLengthMillis / HEATING_CYCLE_LENGTH));
       }
     }
     else 
@@ -766,12 +698,12 @@ void updateUi()
     vTaskResume(lvglUpdateTask);
   }
 
-  if (!steam && !hotWater && digitalRead(PIN_INFUSE_SWITCH) != infusing)
+  if (!steam && !hotWater && digitalRead(PinInfuseSwitch) != infusing)
   {
     infusing = !infusing;
     if (infusing)
     {
-      digitalWrite(PIN_VALVE_AC, HIGH);
+      digitalWrite(PinValveAc, HIGH);
       valveDeadline = 0;
       infuseStart = millis();
       flowCounterInfusionStart = flowCounter.ticks();
@@ -792,28 +724,28 @@ void updateUi()
     }
   }
 
-  if (!infusing && !hotWater && digitalRead(PIN_STEAM_SWITCH) != steam)
+  if (!infusing && !hotWater && digitalRead(PinSteamSwitch) != steam)
   {
     steam = !steam;
     if (steam)
     {
-      digitalWrite(PIN_VALVE_AC, HIGH);
+      digitalWrite(PinValveAc, HIGH);
       valveDeadline = 0;
     }
     else
     {
       pumpDimmer.setPowerLevel(0);
-      digitalWrite(PIN_VALVE_AC, LOW);
+      digitalWrite(PinValveAc, LOW);
     }
   }
 
-  if (!infusing && !steam && digitalRead(PIN_HOTWATER_SWITCH) != hotWater)
+  if (!infusing && !steam && digitalRead(PinHotwaterSwitch) != hotWater)
   {
     hotWater = !hotWater;
     if (hotWater)
     {
       coldFlush = temperateAvg.get() >= 100.0;
-      digitalWrite(PIN_VALVE_AC, coldFlush ? LOW : HIGH);
+      digitalWrite(PinValveAc, coldFlush ? LOW : HIGH);
       flowCounterInfusionStart = flowCounter.ticks();
       infusionHeatingCyclesIs = 0;
     }
@@ -821,7 +753,7 @@ void updateUi()
     {
       setTemperature(config.temperature);
       pumpDimmer.setPowerLevel(0);
-      digitalWrite(PIN_VALVE_AC, LOW);
+      digitalWrite(PinValveAc, LOW);
     }
   }
 
@@ -845,14 +777,14 @@ void updateUi()
       }
       else
       {
-        if ((flowCounter.ticks() - flowCounterInfusionStart) * FLOW_ML_PER_TICK > config.maxInfusionVolume)
+        if ((flowCounter.ticks() - flowCounterInfusionStart) * FlowMeterVolumePerTickMilliliters > config.maxInfusionVolume)
         {
           pumpValue = 0;
-          digitalWrite(PIN_VALVE_AC, LOW);
+          digitalWrite(PinValveAc, LOW);
         }
-        else if (infusionTime < PUMP_RAMPUP_TIME)
+        else if (infusionTime < DefaultPumpRampUpMillis)
         {
-          pumpValue = config.preinfusionPumpPower + (float)(infusionTime) / PUMP_RAMPUP_TIME * (config.pumpPower - config.preinfusionPumpPower);
+          pumpValue = config.preinfusionPumpPower + (float)(infusionTime) / DefaultPumpRampUpMillis * (config.pumpPower - config.preinfusionPumpPower);
         }
         else
         {
@@ -881,20 +813,20 @@ void updateUi()
   {
     if (valveDeadline != 0 && millis() > valveDeadline) 
     {
-      digitalWrite(PIN_VALVE_AC, LOW);
+      digitalWrite(PinValveAc, LOW);
       valveDeadline = 0;
     }
   }
 
-  if (cycle % MAX31856_READ_INTERVAL_CYCLES == 0)
+  if (cycle % Max31856ReadIntervalCycles == 0)
   {
-    temperatureIs = thermo.calculateTemperature(thermo.readRTDCont(), MAX31865_RNOMINAL, MAX31865_RREF);
+    temperatureIs = thermo.calculateTemperature(thermo.readRTDCont(), Max31865ReferenceTemperature, Max31865ReferenceResistorValueOhms);
 
     temperateAvg.push(temperatureIs);
 
-    if (warmup && config.temperature - temperateAvg.get() < WARMUP_TEMPERATURE_THRESHOLD)
+    if (warmup && config.temperature - temperateAvg.get() < WarmupTemperatureThresholdKelvin)
     {
-      temperaturePid.SetTunings(PID_P, PID_I, PID_D);
+      temperaturePid.SetTunings(DefaultPidP, DefaultPidI, DefaultPidD);
       warmup = false;
     }
   
@@ -909,7 +841,7 @@ void updateUi()
     }
   }
 
-  if (cycle % XDB401_READ_INTERVAL_CYCLES == 0)
+  if (cycle % Xdb401ReadIntervalCycles == 0)
   {
     double pressure;
     if (pressureSensor.readValue(pressure) == 0)
@@ -926,17 +858,17 @@ void updateUi()
   if (cycle % FLOW_PROCESS_INTERVAL_CYCLES == 0)
   {
     unsigned int currentFlowCounter = flowCounter.ticks();
-    float flow = (currentFlowCounter - lastFlowCounter) * FLOW_ML_PER_TICK / (FLOW_PROCESS_INTERVAL_CYCLES * CYCLE_LENGTH / 1000.0);
+    float flow = (currentFlowCounter - lastFlowCounter) * FlowMeterVolumePerTickMilliliters / (FLOW_PROCESS_INTERVAL_CYCLES * CycleLengthMillis / 1000.0);
     flowAvg.push(flow);
     lastFlowCounter = currentFlowCounter;
 
     if (infusing || hotWater)
     {
-        if (temperateAvg.get() < TEMPERATURE_MAX && !(hotWater && coldFlush)) 
+        if (temperateAvg.get() < MaxTemperatureCelsius && !(hotWater && coldFlush)) 
         {
-          float infusionVolume = (currentFlowCounter - flowCounterInfusionStart) * FLOW_ML_PER_TICK;
+          float infusionVolume = (currentFlowCounter - flowCounterInfusionStart) * FlowMeterVolumePerTickMilliliters;
           float heatingEnergy = infusionVolume * (config.temperature - config.waterTemperature) * HEATING_ENERGY_PER_ML_AND_KELVIN_WATTSECONDS * config.volumeBasedHeatingFactor;
-          unsigned int heatingCyclesSet = heatingEnergy / HEATING_OUTPUT_WATTS * 1000 / HEATING_CYCLE_LENGTH;
+          unsigned int heatingCyclesSet = heatingEnergy / HeatingOutputWatts * 1000 / HEATING_CYCLE_LENGTH;
           if (heatingCyclesSet > infusionHeatingCyclesIs) 
           {
             heatingRelay.setCycles(heatingCyclesSet - infusionHeatingCyclesIs, false);
@@ -967,7 +899,7 @@ void updateUi()
   {
     if (abs(temperateAvg.get() - temperatureSet) < 0.5f && brewingUnitTemperateAvg.get() >= brewingUnitTemperature)
     {
-      if (readyCycleCount % (READY_NOTIFICATION_INTERVAL / CYCLE_LENGTH) == 0)
+      if (readyCycleCount % (READY_NOTIFICATION_INTERVAL / CycleLengthMillis) == 0)
       {
         readyMelody();
       }
@@ -977,7 +909,7 @@ void updateUi()
 
   cycle++;
 
-  unsigned int nextLoopTime = startupTime + cycle * CYCLE_LENGTH;
+  unsigned int nextLoopTime = startupTime + cycle * CycleLengthMillis;
   unsigned int now = millis();
   if (now < nextLoopTime)
   {

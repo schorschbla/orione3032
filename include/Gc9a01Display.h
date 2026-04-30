@@ -1,3 +1,5 @@
+#pragma once
+
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
 #include <lvgl.h>
@@ -28,5 +30,5 @@ private:
   lv_area_t excluded;
 
   void flush(const lv_area_t *area, lv_color_t *color_p);
-  friend void flushDisp(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p);
+  static void flushDisp(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p);
 };
