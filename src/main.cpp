@@ -5,7 +5,7 @@
 #include <Adafruit_VL53L0X.h>
 #include <DataTome.h>
 #include <FS.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include <PID_v1.h>
 
 #include <vector>
@@ -59,7 +59,7 @@ std::vector<fs::File> splashFiles;
 
 void getSplashImages()
 {
-  fs::File root = SPIFFS.open("/"); 
+  fs::File root = LittleFS.open("/"); 
 
   while (fs::File file = root.openNextFile()) 
   {
@@ -405,11 +405,11 @@ struct Qm3032Config
   float maxInfusionVolume;
 };
 
-struct Qm3032Config defaultConfig = { 1, 90.0, 20.0, 0.73, 8.0, 12000, 2.0, 125.0, 2, 55.0, { 0 }, 1.0, 20, 240, 0.6, 0.45, 60.0 };
+struct Qm3032Config defaultConfig = { 1, 92.0, 20.0, 0.73, 8.0, 12000, 2.0, 125.0, 3, 70.0, { 0 }, 0.7, 20, 240, 0.6, 0.45, 45.0 };
 
 bool readConfig(struct Qm3032Config &config)
 {
-  fs::File file = SPIFFS.open("/config.bin", "r"); 
+  fs::File file = LittleFS.open("/config.bin", "r"); 
   if (file)
   {
     bool success = file.read(reinterpret_cast<uint8_t *>(&config), sizeof(struct Qm3032Config)) <= sizeof(struct Qm3032Config);
@@ -421,7 +421,7 @@ bool readConfig(struct Qm3032Config &config)
 
 bool writeConfig(const struct Qm3032Config &config)
 {
-  fs::File file = SPIFFS.open("/config.bin", "w"); 
+  fs::File file = LittleFS.open("/config.bin", "w"); 
   if (file)
   {    
     file.write(reinterpret_cast<const uint8_t *>(&config), sizeof(struct Qm3032Config));
@@ -451,7 +451,7 @@ void setup()
   analogWriteFrequency(PinGc9a01Backlight, 2000);
   analogWrite(PinGc9a01Backlight, 0);
 
-  SPIFFS.begin();
+  LittleFS.begin();
 
   pinMode(PinInfuseSwitch, INPUT);
   pinMode(PinSteamSwitch, INPUT);
