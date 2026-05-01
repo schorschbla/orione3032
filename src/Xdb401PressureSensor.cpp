@@ -27,7 +27,7 @@ static int ReadXdb401PressureValue(TwoWire &wire, uint8_t address, int32_t *resu
         return -2;
     }
 
-    *result = (int16_t)((sample & 0x800000) ? sample - 0x1000000 : sample);
+    *result = (sample & 0x800000) ? sample - 0x1000000 : sample;
 
     // TODO return proper error codes
     return 0;
