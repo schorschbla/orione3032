@@ -42,7 +42,10 @@ int PulseCounter::begin()
         return ret;
     }
  
-    ret = pcnt_channel_set_edge_action(pcntChannel, PCNT_CHANNEL_EDGE_ACTION_INCREASE, PCNT_CHANNEL_EDGE_ACTION_HOLD);
+    gpio_pullup_dis((gpio_num_t)channelConfig.edge_gpio_num);
+    gpio_pulldown_en((gpio_num_t)channelConfig.edge_gpio_num);
+
+    ret = pcnt_channel_set_edge_action(pcntChannel, PCNT_CHANNEL_EDGE_ACTION_INCREASE, PCNT_CHANNEL_EDGE_ACTION_INCREASE);
     if (ret != ESP_OK)
     {
         return ret;

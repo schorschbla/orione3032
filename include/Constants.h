@@ -36,7 +36,7 @@ const double Xdb401MaxBar = 20.0;
 const double Max31865ReferenceResistorValueOhms = 430.0;
 const double Max31865ReferenceTemperature = 100.0;
 
-const double FlowMeterVolumePerTickMilliliters = 0.1;
+const double FlowMeterVolumePerTickMilliliters = 0.05;
 
 const double HeatingOutputWatts = 1000;
 
