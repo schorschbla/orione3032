@@ -8,6 +8,9 @@
 #include <LittleFS.h>
 #include <PID_v1.h>
 
+#include "Qm3032Config.h"
+#include "BleConfigServer.h"
+
 #include <vector>
 
 #include "Constants.h"
@@ -384,30 +387,9 @@ TaskHandle_t lvglUpdateTask;
 
 #define CONFIG_VERSION    0x0001
 
-struct Qm3032Config
-{
-  uint16_t version;
-  float temperature;
-  float waterTemperature;
-  float pumpPower;
-  float UNUSED_preinfusionVolume;
-  uint16_t preinfusionDuration;
-  float preinfusionPressure;
-  float steamTemperature;
-  uint8_t steamWaterSupplyCycles;
-  float brewingUnitTemperature;
-  char btDeviceName[32];
-  float volumeBasedHeatingFactor;
-  uint16_t waterLevelMax;
-  uint16_t waterLevelMin;
-  float preinfusionPumpPower;
-  float hotWaterPumpPower;
-  float maxInfusionVolume;
-};
+const Qm3032Config defaultConfig = { 1, 92.0, 20.0, 0.73, 8.0, 12000, 2.0, 125.0, 3, 70.0, { 0 }, 0.7, 20, 240, 0.52, 0.45, 45.0 };
 
-struct Qm3032Config defaultConfig = { 1, 92.0, 20.0, 0.73, 8.0, 12000, 2.0, 125.0, 3, 70.0, { 0 }, 0.7, 20, 240, 0.6, 0.45, 45.0 };
-
-bool readConfig(struct Qm3032Config &config)
+bool readConfig(Qm3032Config &config)
 {
   fs::File file = LittleFS.open("/config.bin", "r"); 
   if (file)
@@ -419,18 +401,20 @@ bool readConfig(struct Qm3032Config &config)
   return false;
 }
 
-bool writeConfig(const struct Qm3032Config &config)
+bool writeConfig(const Qm3032Config &config)
 {
   fs::File file = LittleFS.open("/config.bin", "w"); 
   if (file)
-  {    
-    file.write(reinterpret_cast<const uint8_t *>(&config), sizeof(struct Qm3032Config));
+  {
+    file.write(reinterpret_cast<const uint8_t *>(&config), sizeof(Qm3032Config));
     file.close();
+    return true;
   }
   return false;
 }
 
 Qm3032Config config;
+BleConfigServer bleConfigServer;
 
 void readyMelody()
 {
@@ -475,6 +459,8 @@ void setup()
   {
     Serial.printf("Read config failed\n");
   }
+
+  bleConfigServer.begin(&config, writeConfig);
 
   Wire.begin();
 
