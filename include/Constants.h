@@ -24,7 +24,7 @@ const uint8_t PinInfuseSwitch = 34;
 const uint8_t PinSteamSwitch = 23;
 const uint8_t PinHotwaterSwitch = 39;
 
-const uint8_t PinFlowMeter = 15;
+const uint8_t PinFlowMeter = 19;
 
 const uint8_t PinBuzzer = 5;
 
@@ -36,7 +36,7 @@ const double Xdb401MaxBar = 20.0;
 const double Max31865ReferenceResistorValueOhms = 430.0;
 const double Max31865ReferenceTemperature = 100.0;
 
-const double FlowMeterVolumePerTickMilliliters = 0.05;
+const double FlowMeterVolumePerTickMilliliters = 0.2;
 
 const double HeatingOutputWatts = 1000;
 

@@ -405,7 +405,7 @@ struct Qm3032Config
   float maxInfusionVolume;
 };
 
-struct Qm3032Config defaultConfig = { 1, 92.0, 20.0, 0.73, 8.0, 12000, 2.0, 125.0, 3, 70.0, { 0 }, 0.7, 20, 240, 0.6, 0.45, 45.0 };
+struct Qm3032Config defaultConfig = { 1, 94.0, 20.0, 0.70, 8.0, 12000, 1.8, 125.0, 3, 70.0, { 0 }, 0.7, 20, 240, 0.48, 0.35, 50.0 };
 
 bool readConfig(struct Qm3032Config &config)
 {
@@ -471,10 +471,10 @@ void setup()
   }
 
   config = defaultConfig;
-  if (!readConfig(config))
-  {
-    Serial.printf("Read config failed\n");
-  }
+  //if (!readConfig(config))
+  //{
+  //  Serial.printf("Read config failed\n");
+  //}
 
   Wire.begin();
 
@@ -588,6 +588,7 @@ void updateUi()
 
     float volume = (flowCounter.ticks() - flowCounterInfusionStart) * FlowMeterVolumePerTickMilliliters;
     lv_label_set_text_fmt(infuseVolumeLabel, (hotWater && coldFlush) ? "\xEF\x8B\x9C %.1f ml" : "%.1f ml", volume);
+    //lv_label_set_text_fmt(infuseVolumeLabel, "%d", flowCounter.ticks() - flowCounterInfusionStart);
   }
   else
   {
@@ -807,7 +808,7 @@ void updateUi()
   }
   else if (hotWater)
   {
-      pumpDimmer.setPowerLevel(config.preinfusionPumpPower);
+      pumpDimmer.setPowerLevel(config.hotWaterPumpPower);
   }
   else
   {
@@ -908,7 +909,7 @@ void updateUi()
   }
 
   cycle++;
-
+  
   unsigned int nextLoopTime = startupTime + cycle * CycleLengthMillis;
   unsigned int now = millis();
   if (now < nextLoopTime)
