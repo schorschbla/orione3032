@@ -1,7 +1,9 @@
 #include <Arduino.h>
+#include <driver/gpio.h>
 #include "PulseCounter.h"
 
-PulseCounter::PulseCounter(uint8_t pin) : pin(pin), _ticks(0), lastInterruptTime(0)
+PulseCounter::PulseCounter(uint8_t pin, uint32_t debouncePeriodMs, int edgeType)
+    : pin(pin), debouncePeriodMs(debouncePeriodMs), edgeType(edgeType), _ticks(0), timer(nullptr)
 {
 }
 
@@ -12,12 +14,20 @@ PulseCounter::~PulseCounter()
 
 void PulseCounter::begin()
 {
-    attachInterruptArg(pin, onInterruptArg, this, RISING);
+    timer = timerBegin(1000000);
+    timerAttachInterruptArg(timer, onTimerInterruptArg, this);
+    attachInterruptArg(pin, onInterruptArg, this, edgeType);
 }
 
 void PulseCounter::end()
 {
     detachInterrupt(pin);
+
+    if (timer != nullptr)
+    {
+        timerEnd(timer);
+        timer = nullptr;
+    }
 }
 
 uint32_t PulseCounter::ticks() const
@@ -30,17 +40,25 @@ void PulseCounter::reset()
     this->_ticks = 0;
 }
 
-void PulseCounter::onInterrupt()
+IRAM_ATTR void PulseCounter::onInterrupt()
 {
-    unsigned long time = millis();
-    if (time - lastInterruptTime > 40)
-    {
-        this->_ticks++;
-        lastInterruptTime = time;
-    }
+    gpio_intr_disable(static_cast<gpio_num_t>(pin));
+    this->_ticks++;
+    timerRestart(timer);
+    timerAlarm(timer, static_cast<uint64_t>(debouncePeriodMs) * 1000, false, 0);
+}
+
+IRAM_ATTR void PulseCounter::onTimerInterrupt()
+{
+    gpio_intr_enable(static_cast<gpio_num_t>(pin));
 }
 
 void PulseCounter::onInterruptArg(void *arg)
 {
     static_cast<PulseCounter *>(arg)->onInterrupt();
+}
+
+void PulseCounter::onTimerInterruptArg(void *arg)
+{
+    static_cast<PulseCounter *>(arg)->onTimerInterrupt();
 }

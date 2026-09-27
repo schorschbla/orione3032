@@ -405,7 +405,7 @@ struct Qm3032Config
   float maxInfusionVolume;
 };
 
-struct Qm3032Config defaultConfig = { 1, 94.0, 20.0, 0.70, 8.0, 12000, 1.8, 125.0, 3, 70.0, { 0 }, 0.7, 20, 240, 0.48, 0.35, 50.0 };
+struct Qm3032Config defaultConfig = { 1, 94.0, 20.0, 0.70, 8.0, 12000, 1.8, 125.0, 3, 70.0, { 0 }, 0.7, 20, 240, 0.48, 0.35, 40.0 };
 
 bool readConfig(struct Qm3032Config &config)
 {
