@@ -87,9 +87,6 @@ void BleServer::start(const char *deviceName) {
 
     pService->start();
 
-    BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-    pAdvertising->setMinPreferred(0x06);
-    pAdvertising->setMinPreferred(0x12);
     BLEDevice::startAdvertising();
 }
 
