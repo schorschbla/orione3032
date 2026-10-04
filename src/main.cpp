@@ -31,7 +31,7 @@ SolidStateRelay heatingRelay(PinHeatingAc, zeroCrossDetector);
 LeadingEdgeDimmer pumpDimmer(PinPumpAc, zeroCrossDetector);
 Xdb401PressureSensor pressureSensor(Wire, 20.0);
 Mlx90614TemperatureSensor brewingUnitTemperatureSensor(Wire);
-PulseCounter flowCounter(PinFlowMeter);
+PulseCounter flowCounter(PinFlowMeter, 20);
 
 BleServer bleServer;
 
@@ -1021,7 +1021,7 @@ void updateUi()
   scaleConnected = millis() - currentScaleValueTimestamp < 1000;
   if (scaleConnected && currentScaleValue != scaleValue)
   {
-    flowWeightAvg.push((currentScaleValue - scaleValue) / 10.0 / (currentScaleValueTimestamp - scaleValueTimestamp) * 1000.0);
+    flowWeightAvg.push((currentScaleValue - scaleValue) / 10.0 / ((currentScaleValueTimestamp - scaleValueTimestamp) / 1000.0));
     scaleValue = currentScaleValue;
     scaleValueTimestamp = currentScaleValueTimestamp;
   }
