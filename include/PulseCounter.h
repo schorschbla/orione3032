@@ -12,7 +12,8 @@ public:
     void begin();
     void end();
 
-    uint32_t ticks() const;
+    uint32_t ticks() const { return this->_ticks; }
+    void ticks(uint32_t &ticks, uint32_t &timestamp) const;
     void reset();
 
 private:
@@ -20,6 +21,7 @@ private:
     uint32_t debouncePeriodMs;
     int edgeType;
     uint32_t _ticks;
+    uint32_t timestamp;
     hw_timer_t *timer;
 
     IRAM_ATTR void onInterrupt();

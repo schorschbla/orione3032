@@ -39,7 +39,7 @@ SPIClass hspi(HSPI);
 Adafruit_MAX31865 thermo(PinMax31865Cs, &hspi);
 Adafruit_VL53L0X waterLevelSensor = Adafruit_VL53L0X();
 
-DataTomeMvAvg<float, double> temperateAvg(20), brewingUnitTemperateAvg(20), pressureAvg(25), flowAvg(10);
+DataTomeMvAvg<float, double> temperateAvg(20), brewingUnitTemperateAvg(20), pressureAvg(25), flowWeightAvg(32), flowVolumeAvg(8), waterLevelAvg(10);
 
 MedianAverage<uint8_t, 9> waterLevelAverage;
 
@@ -63,6 +63,8 @@ std::vector<fs::File> splashFiles;
 bool scaleConnected;
 int32_t scaleValue;
 uint32_t scaleValueTimestamp;
+
+bool infusionStopped;
 
 void getSplashImages()
 {
@@ -92,6 +94,7 @@ void setBrewingUnitTemperature(float t)
 }
 
 unsigned int lastFlowCounter = 0;
+uint32_t lastFlowCounterTimestamp = 0;
 
 lv_obj_t *standbyScreen;
 lv_obj_t *standbyTemperatureArc;
@@ -110,9 +113,13 @@ lv_obj_t *scaleUnitLabel;
 lv_obj_t *infuseScreen;
 lv_obj_t *infusePressureArc;
 lv_obj_t *infusePressureLabel;
-lv_obj_t *infuseTemperatureDiffArc;
 lv_obj_t *infuseTemperatureLabel;
+lv_obj_t *infuseFlowLabel;
+lv_obj_t *infuseFlowUnitLabel;
 lv_obj_t *infuseVolumeLabel;
+lv_obj_t *infuseWeightLabel;
+lv_obj_t *infuseWeightUnitLabel;
+
 
 lv_obj_t *pairingWaitScreen;
 lv_obj_t *pairingPinScreen;
@@ -207,39 +214,67 @@ void initInfuseUi()
   lv_obj_remove_style(infusePressureArc, NULL, LV_PART_KNOB);
   lv_obj_center(infusePressureArc);
 
-  infuseTemperatureDiffArc = lv_arc_create(infuseScreen);
-  lv_obj_set_size(infuseTemperatureDiffArc, 230, 230);
-  lv_obj_set_style_arc_width(infuseTemperatureDiffArc, 16, LV_PART_MAIN);
-  lv_obj_set_style_arc_width(infuseTemperatureDiffArc, 16, LV_PART_INDICATOR);
-  lv_arc_set_rotation(infuseTemperatureDiffArc, 50);
-  lv_arc_set_bg_angles(infuseTemperatureDiffArc, 0, 80);
-  lv_obj_remove_style(infuseTemperatureDiffArc, NULL, LV_PART_KNOB);
-  lv_obj_center(infuseTemperatureDiffArc);
-
   infusePressureLabel = lv_label_create(infuseScreen);
   lv_obj_set_style_text_font(infusePressureLabel, &lv_font_my_montserrat_48, 0);
-  lv_obj_set_width(infusePressureLabel, 150);
-  lv_obj_set_style_text_align(infusePressureLabel, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(infusePressureLabel, LV_ALIGN_CENTER, 0, -42);
+  lv_obj_set_width(infusePressureLabel, 144);
+  lv_obj_set_style_text_align(infusePressureLabel, LV_TEXT_ALIGN_RIGHT, 0);
+  lv_obj_align(infusePressureLabel, LV_ALIGN_TOP_LEFT, 0, 26);
+
 
   lv_obj_t *barLabel = lv_label_create(infuseScreen);
   lv_obj_set_style_text_font(barLabel, &lv_font_my_montserrat_20, 0);
-  lv_obj_set_width(barLabel, 150);
-  lv_obj_set_style_text_align(barLabel, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(barLabel, LV_ALIGN_CENTER, 0, -76);
-  lv_label_set_text_fmt(barLabel, "Bar");
+  lv_obj_set_width(barLabel, 50);
+  lv_obj_set_style_text_align(barLabel, LV_TEXT_ALIGN_LEFT, 0);
+  lv_obj_align(barLabel, LV_ALIGN_TOP_LEFT, 146, 49);
+  lv_label_set_text_fmt(barLabel, "bar");
 
-  infuseVolumeLabel = lv_label_create(infuseScreen);
-  lv_obj_set_style_text_font(infuseVolumeLabel, &lv_font_my_montserrat_36, 0);
-  lv_obj_set_width(infuseVolumeLabel, 200);
-  lv_obj_set_style_text_align(infuseVolumeLabel, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(infuseVolumeLabel, LV_ALIGN_CENTER, 0, 0);
 
   infuseTemperatureLabel = lv_label_create(infuseScreen);
-  lv_obj_set_style_text_font(infuseTemperatureLabel, &lv_font_my_montserrat_48, 0);
-  lv_obj_set_width(infuseTemperatureLabel, 150);
-  lv_obj_set_style_text_align(infuseTemperatureLabel, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(infuseTemperatureLabel, LV_ALIGN_CENTER, 0, 44);
+  lv_obj_set_style_text_font(infuseTemperatureLabel, &lv_font_my_montserrat_32, 0);
+  lv_obj_set_width(infuseTemperatureLabel, 116);
+  lv_obj_set_style_text_align(infuseTemperatureLabel, LV_TEXT_ALIGN_RIGHT, 0);
+  lv_obj_align(infuseTemperatureLabel, LV_ALIGN_TOP_LEFT, 0, 70);
+
+
+  infuseVolumeLabel = lv_label_create(infuseScreen);
+  lv_obj_set_style_text_font(infuseVolumeLabel, &lv_font_my_montserrat_32, 0);
+  lv_obj_set_width(infuseVolumeLabel, 62);
+  lv_obj_set_style_text_align(infuseVolumeLabel, LV_TEXT_ALIGN_RIGHT, 0);
+  lv_obj_align(infuseVolumeLabel, LV_ALIGN_TOP_LEFT, 120, 70);
+
+  lv_obj_t *mlLabel = lv_label_create(infuseScreen);
+  lv_obj_set_style_text_font(mlLabel, &lv_font_my_montserrat_20, 0);
+  lv_obj_set_width(mlLabel, 50);
+  lv_obj_set_style_text_align(mlLabel, LV_TEXT_ALIGN_LEFT, 0);
+  lv_obj_align(mlLabel, LV_ALIGN_TOP_LEFT, 182, 80);
+  lv_label_set_text_fmt(mlLabel, "ml");
+
+
+  infuseWeightLabel = lv_label_create(infuseScreen);
+  lv_obj_set_style_text_font(infuseWeightLabel, &lv_font_my_montserrat_68, 0);
+  lv_obj_set_width(infuseWeightLabel, 230);
+  lv_obj_set_style_text_align(infuseWeightLabel, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_align(infuseWeightLabel, LV_ALIGN_CENTER, 0, 54);
+
+  infuseWeightUnitLabel = lv_label_create(infuseScreen);
+  lv_obj_set_style_text_font(infuseWeightUnitLabel, &lv_font_my_montserrat_20, 0);
+  lv_obj_set_width(infuseWeightUnitLabel, 230);
+  lv_obj_set_style_text_align(infuseWeightUnitLabel, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_align(infuseWeightUnitLabel, LV_ALIGN_CENTER, 0, 92);
+
+  infuseFlowLabel = lv_label_create(infuseScreen);
+  lv_obj_set_style_text_font(infuseFlowLabel, &lv_font_my_montserrat_48, 0);
+  lv_obj_set_width(infuseFlowLabel, 144);
+  lv_obj_set_style_text_align(infuseFlowLabel, LV_TEXT_ALIGN_RIGHT, 0);
+  lv_obj_align(infuseFlowLabel, LV_ALIGN_TOP_LEFT, 0, 97);
+
+
+  infuseFlowUnitLabel = lv_label_create(infuseScreen);
+  lv_obj_set_style_text_font(infuseFlowUnitLabel, &lv_font_my_montserrat_20, 0);
+  lv_obj_set_width(infuseFlowUnitLabel, 50);
+  lv_obj_set_style_text_align(infuseFlowUnitLabel, LV_TEXT_ALIGN_LEFT, 0);
+  lv_obj_align(infuseFlowUnitLabel, LV_ALIGN_TOP_LEFT, 146, 120);
+
 }
 
 void initPairingUi(char *btDeviceName)
@@ -427,9 +462,10 @@ struct Qm3032Config
   float preinfusionPumpPower;
   float hotWaterPumpPower;
   float maxInfusionVolume;
+  float infusionWeight;
 };
 
-struct Qm3032Config defaultConfig = { 1, 94.0, 20.0, 0.70, 8.0, 12000, 1.8, 125.0, 3, 70.0, { 0 }, 0.7, 20, 240, 0.48, 0.35, 40.0 };
+struct Qm3032Config defaultConfig = { 1, 94.0, 20.0, 0.70, 8.0, 12000, 1.8, 125.0, 3, 70.0, { 0 }, 0.7, 20, 240, 0.48, 0.35, 40.0, 27.0 };
 
 bool readConfig(struct Qm3032Config &config)
 {
@@ -553,6 +589,8 @@ unsigned int flowCounterInfusionStart;
 
 unsigned int infusionHeatingCyclesIs;
 
+int32_t scaleValueInfusionStart;
+
 bool preinfusionPressureReached;
 bool preinfusionPassed;
 
@@ -578,43 +616,55 @@ void updateUi()
       lv_scr_load(infuseScreen);
     }
 
-    int temperatureAvgDegreeInt = (int) temperatureAvgDegree;
-    if (temperatureAvgDegreeInt < 100)
+    int temperatureAvgDegreeTenths = (int)(temperatureAvgDegree * 10);
+    if (temperatureAvgDegreeTenths < 1000)
     {
-      lv_label_set_text_fmt(infuseTemperatureLabel, "%.1f°", temperatureAvgDegree);
+      lv_label_set_text_fmt(infuseTemperatureLabel, "%d.%d°", temperatureAvgDegreeTenths / 10, temperatureAvgDegreeTenths % 10);
     }
     else
     {
-      lv_label_set_text_fmt(infuseTemperatureLabel, "%d°", temperatureAvgDegreeInt);
+      lv_label_set_text_fmt(infuseTemperatureLabel, "%d°", temperatureAvgDegreeTenths / 10);
     }
 
-    uint16_t angleStart, angleEnd;
-    if (tempDiff < 0)
+    int32_t pressureTenthsBar = (int32_t)(displayedPressure * 10);
+    if (pressureTenthsBar < 100)
     {
-      angleStart = 40;
-      angleEnd = 40 - tempDiff * 40;
+      lv_label_set_text_fmt(infusePressureLabel, "%d.%d", pressureTenthsBar / 10, pressureTenthsBar % 10);
     }
     else
     {
-      angleStart = (1 - tempDiff) * 40;
-      angleEnd = 40;
+      lv_label_set_text_fmt(infusePressureLabel, "%d", pressureTenthsBar / 10);
     }
-    if (angleEnd - angleStart < 4)
-    {
-      angleStart -= (4 - (angleEnd - angleStart)) / 2;
-      angleEnd = angleStart + 4;
-    }
-    lv_arc_set_angles(infuseTemperatureDiffArc, angleStart, angleEnd);
-    lv_obj_set_style_arc_color(infuseTemperatureDiffArc, lv_color_hex(tempGradient.getRgb(temperatureAvgDegree)), LV_PART_INDICATOR | LV_STATE_DEFAULT );
-
-    lv_label_set_text_fmt(infusePressureLabel, "%.1f", displayedPressure);
+    
     lv_arc_set_angles(infusePressureArc, 0, displayedPressure / 16.0 * 250);
     lv_obj_set_style_arc_color(infusePressureArc, lv_color_hex(pressureGradient.getRgb(displayedPressure)), LV_PART_INDICATOR | LV_STATE_DEFAULT );
 
-
     float volume = (flowCounter.ticks() - flowCounterInfusionStart) * FlowMeterVolumePerTickMilliliters;
-    lv_label_set_text_fmt(infuseVolumeLabel, (hotWater && coldFlush) ? "\xEF\x8B\x9C %.1f ml" : "%.1f ml", volume);
-    //lv_label_set_text_fmt(infuseVolumeLabel, "%d", flowCounter.ticks() - flowCounterInfusionStart);
+
+    if (scaleConnected)
+    {
+      uint32_t weight = scaleValue - scaleValueInfusionStart;
+      lv_label_set_text_fmt(infuseWeightUnitLabel, "Gramm");
+      if (weight < 1000)
+      {
+        lv_label_set_text_fmt(infuseWeightLabel, "%d.%d", weight / 10, weight % 10);
+      }
+      else
+      {
+        lv_label_set_text_fmt(infuseWeightLabel, "%d", weight / 10);
+      }
+      lv_label_set_text_fmt(infuseFlowUnitLabel, "g/s");
+      lv_label_set_text_fmt(infuseFlowLabel, "%.1f", flowWeightAvg.get());
+    }
+    else
+    {
+      lv_label_set_text_fmt(infuseWeightUnitLabel, "ml");
+      lv_label_set_text_fmt(infuseWeightLabel, "%.1f", volume);
+      lv_label_set_text_fmt(infuseFlowUnitLabel, "ml/s");
+      lv_label_set_text_fmt(infuseFlowLabel, "%.1f", flowVolumeAvg.get());
+    }
+
+    lv_label_set_text_fmt(infuseVolumeLabel, (hotWater && coldFlush) ? "\xEF\x8B\x9C %.1f" : "%.1f", volume);
   }
   else
   {
@@ -753,9 +803,11 @@ void updateUi()
       valveDeadline = 0;
       infuseStart = millis();
       flowCounterInfusionStart = flowCounter.ticks();
+      scaleValueInfusionStart = scaleValue;
       infusionHeatingCyclesIs = 0;
       preinfusionPressureReached = false;
       preinfusionPassed = false;
+      infusionStopped = false;
    }
     else
     {
@@ -823,7 +875,14 @@ void updateUi()
       }
       else
       {
-        if ((flowCounter.ticks() - flowCounterInfusionStart) * FlowMeterVolumePerTickMilliliters > config.maxInfusionVolume)
+        if (!infusionStopped)
+        {
+          infusionStopped = scaleConnected ? 
+            scaleValue - scaleValueInfusionStart >= config.infusionWeight * 10 : 
+            (flowCounter.ticks() - flowCounterInfusionStart) * FlowMeterVolumePerTickMilliliters >= config.maxInfusionVolume;
+        }
+
+        if (infusionStopped)
         {
           pumpValue = 0;
           digitalWrite(PinValveAc, LOW);
@@ -901,12 +960,15 @@ void updateUi()
     }
   }
 
-  if (cycle % FLOW_PROCESS_INTERVAL_CYCLES == 0)
+  uint32_t currentFlowCounter;
+  uint32_t currentFlowCounterTimestamp;
+  flowCounter.ticks(currentFlowCounter, currentFlowCounterTimestamp);
+  if (currentFlowCounter > lastFlowCounter)
   {
-    unsigned int currentFlowCounter = flowCounter.ticks();
-    float flow = (currentFlowCounter - lastFlowCounter) * FlowMeterVolumePerTickMilliliters / (FLOW_PROCESS_INTERVAL_CYCLES * CycleLengthMillis / 1000.0);
-    flowAvg.push(flow);
+    float flow = (currentFlowCounter - lastFlowCounter) * FlowMeterVolumePerTickMilliliters / ((currentFlowCounterTimestamp - lastFlowCounterTimestamp) / 1000.0);
+    flowVolumeAvg.push(flow);
     lastFlowCounter = currentFlowCounter;
+    lastFlowCounterTimestamp = currentFlowCounterTimestamp;
 
     if (infusing || hotWater)
     {
@@ -953,8 +1015,20 @@ void updateUi()
     }
   }
 
-  bleServer.scaleValue(scaleValue, scaleValueTimestamp);
-  scaleConnected = millis() - scaleValueTimestamp < 1000;
+  int32_t currentScaleValue;
+  unsigned long currentScaleValueTimestamp;
+  bleServer.scaleValue(currentScaleValue, currentScaleValueTimestamp);
+  scaleConnected = millis() - currentScaleValueTimestamp < 1000;
+  if (scaleConnected && currentScaleValue != scaleValue)
+  {
+    flowWeightAvg.push((currentScaleValue - scaleValue) / 10.0 / (currentScaleValueTimestamp - scaleValueTimestamp) * 1000.0);
+    scaleValue = currentScaleValue;
+    scaleValueTimestamp = currentScaleValueTimestamp;
+  }
+  else
+  {
+    flowWeightAvg.push(0.0);
+  }
 
   cycle++;
   

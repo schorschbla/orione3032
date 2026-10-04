@@ -30,20 +30,24 @@ void PulseCounter::end()
     }
 }
 
-uint32_t PulseCounter::ticks() const
+void PulseCounter::ticks(uint32_t &ticks, uint32_t &timestamp) const
 {
-    return this->_ticks;
+    do {
+        timestamp = this->timestamp;
+        ticks = this->_ticks;
+    } while (timestamp != this->timestamp);
 }
 
 void PulseCounter::reset()
 {
-    this->_ticks = 0;
+    this->_ticks = this->timestamp = 0;
 }
 
 IRAM_ATTR void PulseCounter::onInterrupt()
 {
     gpio_intr_disable(static_cast<gpio_num_t>(pin));
     this->_ticks++;
+    this->timestamp = millis();
     timerRestart(timer);
     timerAlarm(timer, static_cast<uint64_t>(debouncePeriodMs) * 1000, false, 0);
 }

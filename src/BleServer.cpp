@@ -37,7 +37,7 @@ int32_t BleServer::decodeLcdSegmentCodeValue(const uint8_t *data, size_t length)
 void BleServer::onWrite(BLECharacteristic* characteristic) {
     if (characteristic == this->scaleValueCharacteristic) 
     {
-        if (characteristic->getLength() >= 11) 
+        if (characteristic->getLength() >= 12) 
         {
             uint8_t* data = characteristic->getData();
             if (memcmp(data + 7, dh8706CalibrationSequence, sizeof(dh8706CalibrationSequence))) 
