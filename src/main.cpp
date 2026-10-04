@@ -21,6 +21,7 @@
 #include "PulseCounter.h"
 #include "MedianAverage.h"
 #include "JitterFilter.h"
+#include "BleServer.h"
 
 
 Gc9a01Display display(Gc9a01SpiWriteFreq, PinGc9a01Sclk, PinGc9a01Mosi, PinGc9a01Dc, PinGc9a01Cs, PinGc9a01Rst);
@@ -31,6 +32,8 @@ LeadingEdgeDimmer pumpDimmer(PinPumpAc, zeroCrossDetector);
 Xdb401PressureSensor pressureSensor(Wire, 20.0);
 Mlx90614TemperatureSensor brewingUnitTemperatureSensor(Wire);
 PulseCounter flowCounter(PinFlowMeter);
+
+BleServer bleServer;
 
 SPIClass hspi(HSPI);
 Adafruit_MAX31865 thermo(PinMax31865Cs, &hspi);
@@ -56,6 +59,10 @@ JitterFilter<int, 3> waterLevelFlappingFilter(300000);
 bool waterLevelSensorPresent;
 
 std::vector<fs::File> splashFiles;
+
+bool scaleConnected;
+int32_t scaleValue;
+uint32_t scaleValueTimestamp;
 
 void getSplashImages()
 {
@@ -96,6 +103,9 @@ lv_obj_t *brewingUnitTemperatureLabel;
 lv_obj_t *waterLevelArc;
 lv_obj_t *waterLevelLabel;
 lv_obj_t *waterLevelSymbol;
+
+lv_obj_t *scaleValueLabel;
+lv_obj_t *scaleUnitLabel;
 
 lv_obj_t *infuseScreen;
 lv_obj_t *infusePressureArc;
@@ -168,6 +178,20 @@ void initStandbyUi()
   lv_obj_set_width(waterLevelLabel, 126);
   lv_obj_set_style_text_align(waterLevelLabel, LV_TEXT_ALIGN_RIGHT, 0);
   lv_obj_align(waterLevelLabel, LV_ALIGN_CENTER, 0, -23);
+
+  scaleValueLabel = lv_label_create(standbyScreen);
+  lv_obj_set_style_text_font(scaleValueLabel, &lv_font_my_montserrat_68, 0);
+  lv_obj_set_width(scaleValueLabel, 230);
+  lv_obj_set_style_text_align(scaleValueLabel, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_align(scaleValueLabel, LV_ALIGN_CENTER, 0, 32);
+
+  scaleUnitLabel = lv_label_create(standbyScreen);
+  lv_obj_set_style_text_font(scaleUnitLabel, &lv_font_my_montserrat_20, 0);
+  lv_obj_set_width(scaleUnitLabel, 230);
+  lv_obj_set_style_text_align(scaleUnitLabel, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_align(scaleUnitLabel, LV_ALIGN_CENTER, 0, 70);
+  lv_label_set_text_fmt(scaleUnitLabel, "Gramm");
+
 }
 
 void initInfuseUi()
@@ -346,7 +370,7 @@ void lvglUpdateTaskFunc(void *parameter)
     vTaskSuspend(NULL);
     unsigned long start = millis();
 
-    bool displaySplash = !infusing && !steam && !hotWater && !splashFiles.empty();
+    bool displaySplash = !infusing && !steam && !hotWater && !splashFiles.empty() && !scaleConnected;
     if (!displaySplash)
     {
       display.clearLvglExcludedArea();
@@ -509,6 +533,8 @@ void setup()
   setTemperature(config.temperature);
   setBrewingUnitTemperature(config.brewingUnitTemperature);
 
+  bleServer.start("SchorschCoff");
+
   startupTime = millis();
 }
 
@@ -649,6 +675,25 @@ void updateUi()
       lv_obj_add_flag(waterLevelSymbol, LV_OBJ_FLAG_HIDDEN);
       lv_obj_add_flag(waterLevelArc, LV_OBJ_FLAG_HIDDEN);
       lv_obj_add_flag(waterLevelLabel, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    if (scaleConnected)
+    {
+      lv_obj_clear_flag(scaleUnitLabel, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_clear_flag(scaleValueLabel, LV_OBJ_FLAG_HIDDEN);
+      if (scaleValue < 1000)
+      {
+        lv_label_set_text_fmt(scaleValueLabel, "%d.%d", scaleValue / 10, scaleValue % 10);
+      }
+      else
+      {
+        lv_label_set_text_fmt(scaleValueLabel, "%d", scaleValue / 10);
+      }
+    }
+    else
+    {
+      lv_obj_add_flag(scaleUnitLabel, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(scaleValueLabel, LV_OBJ_FLAG_HIDDEN);
     }
   }
 }
@@ -907,6 +952,9 @@ void updateUi()
       readyCycleCount++;
     }
   }
+
+  bleServer.scaleValue(scaleValue, scaleValueTimestamp);
+  scaleConnected = millis() - scaleValueTimestamp < 1000;
 
   cycle++;
   
