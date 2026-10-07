@@ -40,7 +40,7 @@ void BleServer::onWrite(BLECharacteristic* characteristic) {
         if (characteristic->getLength() >= 12) 
         {
             uint8_t* data = characteristic->getData();
-            if (memcmp(data + 7, dh8706CalibrationSequence, sizeof(dh8706CalibrationSequence))) 
+            if (data[6] != 0 && memcmp(data + 7, dh8706CalibrationSequence, sizeof(dh8706CalibrationSequence))) 
             {
                 _scaleValue = decodeLcdSegmentCodeValue(data + 7, 5);
                 lastScaleValueTimestamp = millis();

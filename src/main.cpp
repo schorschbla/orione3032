@@ -39,7 +39,7 @@ SPIClass hspi(HSPI);
 Adafruit_MAX31865 thermo(PinMax31865Cs, &hspi);
 Adafruit_VL53L0X waterLevelSensor = Adafruit_VL53L0X();
 
-DataTomeMvAvg<float, double> temperateAvg(20), brewingUnitTemperateAvg(20), pressureAvg(25), flowWeightAvg(4), flowVolumeAvg(8), waterLevelAvg(10);
+DataTomeMvAvg<float, double> temperateAvg(20), brewingUnitTemperateAvg(20), pressureAvg(25), flowWeightAvg(4), flowVolumeAvg(4), waterLevelAvg(10);
 
 MedianAverage<uint8_t, 9> waterLevelAverage;
 
@@ -95,7 +95,8 @@ void setBrewingUnitTemperature(float t)
   brewingUnitTemperatureHeatWeights[1] = brewingUnitTemperature - brewingUnitTemperatureHeatWeights[0] - brewingUnitTemperatureHeatWeights[2];
 }
 
-unsigned int lastFlowCounter = 0;
+unsigned int flowCounterValue = 0;
+unsigned int lastFlowCounterValue = 0;
 uint32_t lastFlowCounterTimestamp = 0;
 
 lv_obj_t *standbyScreen;
@@ -233,16 +234,16 @@ void initInfuseUi()
 
   infuseTemperatureLabel = lv_label_create(infuseScreen);
   lv_obj_set_style_text_font(infuseTemperatureLabel, &lv_font_my_montserrat_32, 0);
-  lv_obj_set_width(infuseTemperatureLabel, 116);
+  lv_obj_set_width(infuseTemperatureLabel, 114);
   lv_obj_set_style_text_align(infuseTemperatureLabel, LV_TEXT_ALIGN_RIGHT, 0);
   lv_obj_align(infuseTemperatureLabel, LV_ALIGN_TOP_LEFT, 0, 70);
 
 
   infuseVolumeLabel = lv_label_create(infuseScreen);
   lv_obj_set_style_text_font(infuseVolumeLabel, &lv_font_my_montserrat_32, 0);
-  lv_obj_set_width(infuseVolumeLabel, 60);
+  lv_obj_set_width(infuseVolumeLabel, 70);
   lv_obj_set_style_text_align(infuseVolumeLabel, LV_TEXT_ALIGN_RIGHT, 0);
-  lv_obj_align(infuseVolumeLabel, LV_ALIGN_TOP_LEFT, 120, 70);
+  lv_obj_align(infuseVolumeLabel, LV_ALIGN_TOP_LEFT, 110, 70);
 
   lv_obj_t *mlLabel = lv_label_create(infuseScreen);
   lv_obj_set_style_text_font(mlLabel, &lv_font_my_montserrat_20, 0);
@@ -645,18 +646,21 @@ void updateUi()
 
     if (scaleConnected)
     {
-      uint32_t weight = scaleValue - scaleValueInfusionStart;
-      lv_label_set_text_fmt(infuseWeightUnitLabel, "Gramm");
-      if (weight < 1000)
+      int32_t weight = scaleValue - scaleValueInfusionStart;
+      if (weight >= 0)
       {
-        lv_label_set_text_fmt(infuseWeightLabel, "%d.%d", weight / 10, weight % 10);
+        lv_label_set_text_fmt(infuseWeightUnitLabel, "Gramm");
+        if (weight < 1000)
+        {
+          lv_label_set_text_fmt(infuseWeightLabel, "%d.%d", weight / 10, weight % 10);
+        }
+        else
+        {
+          lv_label_set_text_fmt(infuseWeightLabel, "%d", weight / 10);
+        }
+        lv_label_set_text_fmt(infuseFlowUnitLabel, "g/s");
+        lv_label_set_text_fmt(infuseFlowLabel, "%.1f", flowWeightAvg.get());
       }
-      else
-      {
-        lv_label_set_text_fmt(infuseWeightLabel, "%d", weight / 10);
-      }
-      lv_label_set_text_fmt(infuseFlowUnitLabel, "g/s");
-      lv_label_set_text_fmt(infuseFlowLabel, "%.1f", flowWeightAvg.get());
     }
     else
     {
@@ -673,7 +677,7 @@ void updateUi()
       lv_label_set_text_fmt(infuseFlowLabel, "%.1f", flowVolumeAvg.get());
     }
 
-    if (volumeTenthMl < 100)
+    if (volumeTenthMl < 1000)
     {
       lv_label_set_text_fmt(infuseVolumeLabel, "%d.%d", volumeTenthMl / 10, volumeTenthMl % 10);
     }
@@ -979,12 +983,16 @@ void updateUi()
   uint32_t currentFlowCounter;
   uint32_t currentFlowCounterTimestamp;
   flowCounter.ticks(currentFlowCounter, currentFlowCounterTimestamp);
-  if (currentFlowCounter > lastFlowCounter)
+  if (currentFlowCounter > flowCounterValue)
   {
-    float flow = (currentFlowCounter - lastFlowCounter) * FlowMeterVolumePerTickMilliliters / ((currentFlowCounterTimestamp - lastFlowCounterTimestamp) / 1000.0);
-    flowVolumeAvg.push(flow);
-    lastFlowCounter = currentFlowCounter;
-    lastFlowCounterTimestamp = currentFlowCounterTimestamp;
+    if (millis() - lastScaleValueTimestamp >= 500)
+    {
+      float flow = (currentFlowCounter - lastFlowCounterValue) * FlowMeterVolumePerTickMilliliters / ((currentFlowCounterTimestamp - lastFlowCounterTimestamp) / 1000.0);
+      flowVolumeAvg.push(flow);
+      lastFlowCounterValue = currentFlowCounter;
+      lastFlowCounterTimestamp = currentFlowCounterTimestamp;
+    }
+    flowCounterValue = currentFlowCounter;
 
     if (infusing || hotWater)
     {
@@ -1039,9 +1047,13 @@ void updateUi()
   {
     if (millis() - lastScaleValueTimestamp >= 500)
     {
-      flowWeightAvg.push(((currentScaleValue - lastScaleValue) / 10.0) / ((currentScaleValueTimestamp - lastScaleValueTimestamp) / 1000.0));
-      lastScaleValue = currentScaleValue;
-      lastScaleValueTimestamp = currentScaleValueTimestamp;
+      int32_t delta = currentScaleValue - lastScaleValue;
+      if (delta > 0) 
+      {
+        flowWeightAvg.push((delta / 10.0) / ((currentScaleValueTimestamp - lastScaleValueTimestamp) / 1000.0));
+        lastScaleValue = currentScaleValue;
+        lastScaleValueTimestamp = currentScaleValueTimestamp;
+      }
     }
     scaleValue = currentScaleValue;
   }
