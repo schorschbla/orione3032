@@ -2,8 +2,9 @@
 
 #include "esp_mac.h"
 
-#define SERVICE_UUID        "0000fff0-0000-1000-8000-00805f9b34fb"
-#define CHARACTERISTIC_UUID "0000fff2-0000-1000-8000-00805f9b34fb"
+#define SERVICE_UUID        0xFFF0
+#define CHARACTERISTIC_UUID 0xFFF2
+
 #define CFS_DEVICE_NAME     "CFS-9002"
 #define CFS_SERVICE_UUID    "0000fff0-0000-1000-8000-00805f9b34fb"
 #define CFS_NOTIFY_UUID     "0000fff1-0000-1000-8000-00805f9b34fb"
@@ -15,31 +16,54 @@ BleServer::BleServer() : server(nullptr), scaleValueCharacteristic(nullptr), _sc
 {
 }
 
-int32_t BleServer::decodeLcdSegmentCodeValue(const uint8_t *data, size_t length) {
+int32_t BleServer::decodeLcdSegmentCodeValue(const uint8_t *data, size_t length)
+{
     int32_t value = 0;
     for (int i = (int)length - 1; i >= 0; i--)
-     {
+    {
         int digit = 0;
         switch (data[i] & 0x7F)
         {
-            case 0x3F: digit = 0; break;
-            case 0x06: digit = 1; break;
-            case 0x5B: digit = 2; break;
-            case 0x4F: digit = 3; break;
-            case 0x66: digit = 4; break;
-            case 0x6D: digit = 5; break;
-            case 0x7D: digit = 6; break;
-            case 0x07: digit = 7; break;
-            case 0x7F: digit = 8; break;
-            case 0x6F: digit = 9; break;
-            default: continue;
+        case 0x3F:
+            digit = 0;
+            break;
+        case 0x06:
+            digit = 1;
+            break;
+        case 0x5B:
+            digit = 2;
+            break;
+        case 0x4F:
+            digit = 3;
+            break;
+        case 0x66:
+            digit = 4;
+            break;
+        case 0x6D:
+            digit = 5;
+            break;
+        case 0x7D:
+            digit = 6;
+            break;
+        case 0x07:
+            digit = 7;
+            break;
+        case 0x7F:
+            digit = 8;
+            break;
+        case 0x6F:
+            digit = 9;
+            break;
+        default:
+            continue;
         }
         value = (value * 10) + digit;
     }
     return value;
 }
 
-void BleServer::onWrite(NimBLECharacteristic* characteristic, NimBLEConnInfo& connInfo) {
+void BleServer::onWrite(NimBLECharacteristic* characteristic, NimBLEConnInfo& connInfo) 
+{
     Serial.println("[BLE] Write-Callback");
     if (characteristic == this->scaleValueCharacteristic) 
     {
@@ -62,25 +86,6 @@ void BleServer::onWrite(NimBLECharacteristic* characteristic, NimBLEConnInfo& co
 void BleServer::onConnect(NimBLEServer* server, NimBLEConnInfo& connInfo) 
 {
     Serial.println("[BLE] Server-Client verbunden;");
-    //NimBLEDevice::startAdvertising();
-
-    Serial.println("Client verbunden. Erzwinge MTU-Exchange...");
-
-    // Wir holen uns das Connection-Handle der aktuellen Verbindung
-    uint16_t conn_handle = connInfo.getConnHandle();
-
-
-    // Wir rufen die native NimBLE-Funktion auf, um den MTU-Request 
-    // AKTIV vom Server zum Client zu senden.
-    // 247 ist ein stabiler Standardwert (kann bis 517 gehen).
-    int rc = ble_att_clt_tx_mtu(conn_handle, 247); 
-    
-    if (rc != 0) {
-        Serial.printf("MTU Exchange fehlgeschlagen, Fehlercode: %d\n", rc);
-    } else {
-        Serial.println("MTU Exchange Request erfolgreich gesendet!");
-    }
-
 }
 
 void BleServer::onDisconnect(NimBLEServer* server, NimBLEConnInfo& connInfo, int reason) 
@@ -203,45 +208,32 @@ void BleServer::start(const char *deviceName)
         Serial.printf("[BLE] Fehler beim Setzen der MAC-Adresse: %d\n", err);
     }
 
-    //NimBLEDevice::setOwnAddrType(BLE_OWN_ADDR_PUBLIC);
     NimBLEDevice::init(deviceName);
-    NimBLEDevice::setMTU(247); 
 
     server = NimBLEDevice::createServer();
     server->setCallbacks(this);
 
-    NimBLEService *pService = server->createService(NimBLEUUID((uint16_t)0xfff0));
-
+    NimBLEService *pService = server->createService(NimBLEUUID((uint16_t)SERVICE_UUID));
 
     scaleValueCharacteristic = pService->createCharacteristic(
-                        NimBLEUUID((uint16_t)0xFFF2),
-                        NIMBLE_PROPERTY::READ |
-                        NIMBLE_PROPERTY::WRITE |
-                        NIMBLE_PROPERTY::WRITE_NR
-                    );
-
+        NimBLEUUID((uint16_t)CHARACTERISTIC_UUID),
+        NIMBLE_PROPERTY::READ |
+            NIMBLE_PROPERTY::WRITE |
+            NIMBLE_PROPERTY::WRITE_NR);
 
     scaleValueCharacteristic->setCallbacks(this);
     
     server->start();
 
-Serial.printf("Real vergebenes Handle: 0x%04X\n", scaleValueCharacteristic->getHandle());
-
     NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
-    pAdvertising->addServiceUUID(NimBLEUUID((uint16_t)0xfff0));
-    pAdvertising->enableScanResponse(false);
-    pAdvertising->setAppearance(0x0000);
+    pAdvertising->addServiceUUID(NimBLEUUID((uint16_t)SERVICE_UUID));
     pAdvertising->start();
 
     NimBLEScan *scan = NimBLEDevice::getScan();
     scan->setScanCallbacks(this, true);
     scan->setActiveScan(true);
-    scan->setMaxResults(0);
-    scan->setInterval(100);
-    scan->setWindow(99);
-    scan->setDuplicateFilter(false);
-    Serial.println("[BLE] Asynchroner Dauerscan wird gestartet");
     scan->start(0, false);
+    Serial.println("[BLE] Asynchroner Dauerscan gestartet");
 }
 
 void BleServer::scaleValue(int32_t &value, uint32_t &timestamp) const {
