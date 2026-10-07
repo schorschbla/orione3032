@@ -57,16 +57,36 @@ void BleServer::onWrite(NimBLECharacteristic* characteristic, NimBLEConnInfo& co
     }
 }
 
+    extern "C" int ble_att_clt_tx_mtu(uint16_t conn_handle, uint16_t mtu);
+
 void BleServer::onConnect(NimBLEServer* server, NimBLEConnInfo& connInfo) 
 {
     Serial.println("[BLE] Server-Client verbunden;");
     //NimBLEDevice::startAdvertising();
+
+    Serial.println("Client verbunden. Erzwinge MTU-Exchange...");
+
+    // Wir holen uns das Connection-Handle der aktuellen Verbindung
+    uint16_t conn_handle = connInfo.getConnHandle();
+
+
+    // Wir rufen die native NimBLE-Funktion auf, um den MTU-Request 
+    // AKTIV vom Server zum Client zu senden.
+    // 247 ist ein stabiler Standardwert (kann bis 517 gehen).
+    int rc = ble_att_clt_tx_mtu(conn_handle, 247); 
+    
+    if (rc != 0) {
+        Serial.printf("MTU Exchange fehlgeschlagen, Fehlercode: %d\n", rc);
+    } else {
+        Serial.println("MTU Exchange Request erfolgreich gesendet!");
+    }
+
 }
 
 void BleServer::onDisconnect(NimBLEServer* server, NimBLEConnInfo& connInfo, int reason) 
 {
     Serial.printf("[BLE] Server-Client getrennt (Grund: %d);\n", reason);
-    //NimBLEDevice::startAdvertising();
+    NimBLEDevice::startAdvertising();
 }
 
 struct ConnectionTaskContext
@@ -183,27 +203,33 @@ void BleServer::start(const char *deviceName)
         Serial.printf("[BLE] Fehler beim Setzen der MAC-Adresse: %d\n", err);
     }
 
+    //NimBLEDevice::setOwnAddrType(BLE_OWN_ADDR_PUBLIC);
     NimBLEDevice::init(deviceName);
+    NimBLEDevice::setMTU(247); 
 
     server = NimBLEDevice::createServer();
     server->setCallbacks(this);
 
-    NimBLEService *pService = server->createService(SERVICE_UUID);
+    NimBLEService *pService = server->createService(NimBLEUUID((uint16_t)0xfff0));
+
 
     scaleValueCharacteristic = pService->createCharacteristic(
-                        CHARACTERISTIC_UUID,
-                        NIMBLE_PROPERTY::READ  |
+                        NimBLEUUID((uint16_t)0xFFF2),
+                        NIMBLE_PROPERTY::READ |
                         NIMBLE_PROPERTY::WRITE |
                         NIMBLE_PROPERTY::WRITE_NR
                     );
+
 
     scaleValueCharacteristic->setCallbacks(this);
     
     server->start();
 
+Serial.printf("Real vergebenes Handle: 0x%04X\n", scaleValueCharacteristic->getHandle());
+
     NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
-    pAdvertising->addServiceUUID(SERVICE_UUID);
-    pAdvertising->enableScanResponse(true);
+    pAdvertising->addServiceUUID(NimBLEUUID((uint16_t)0xfff0));
+    pAdvertising->enableScanResponse(false);
     pAdvertising->setAppearance(0x0000);
     pAdvertising->start();
 
