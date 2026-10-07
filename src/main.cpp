@@ -39,7 +39,7 @@ SPIClass hspi(HSPI);
 Adafruit_MAX31865 thermo(PinMax31865Cs, &hspi);
 Adafruit_VL53L0X waterLevelSensor = Adafruit_VL53L0X();
 
-DataTomeMvAvg<float, double> temperateAvg(20), brewingUnitTemperateAvg(20), pressureAvg(25), flowWeightAvg(32), flowVolumeAvg(8), waterLevelAvg(10);
+DataTomeMvAvg<float, double> temperateAvg(20), brewingUnitTemperateAvg(20), pressureAvg(25), flowWeightAvg(4), flowVolumeAvg(8), waterLevelAvg(10);
 
 MedianAverage<uint8_t, 9> waterLevelAverage;
 
@@ -62,7 +62,9 @@ std::vector<fs::File> splashFiles;
 
 bool scaleConnected;
 int32_t scaleValue;
-uint32_t scaleValueTimestamp;
+
+int32_t lastScaleValue = 0;
+uint32_t lastScaleValueTimestamp = 0;
 
 bool infusionStopped;
 
@@ -238,7 +240,7 @@ void initInfuseUi()
 
   infuseVolumeLabel = lv_label_create(infuseScreen);
   lv_obj_set_style_text_font(infuseVolumeLabel, &lv_font_my_montserrat_32, 0);
-  lv_obj_set_width(infuseVolumeLabel, 62);
+  lv_obj_set_width(infuseVolumeLabel, 60);
   lv_obj_set_style_text_align(infuseVolumeLabel, LV_TEXT_ALIGN_RIGHT, 0);
   lv_obj_align(infuseVolumeLabel, LV_ALIGN_TOP_LEFT, 120, 70);
 
@@ -639,7 +641,7 @@ void updateUi()
     lv_arc_set_angles(infusePressureArc, 0, displayedPressure / 16.0 * 250);
     lv_obj_set_style_arc_color(infusePressureArc, lv_color_hex(pressureGradient.getRgb(displayedPressure)), LV_PART_INDICATOR | LV_STATE_DEFAULT );
 
-    float volume = (flowCounter.ticks() - flowCounterInfusionStart) * FlowMeterVolumePerTickMilliliters;
+    int32_t volumeTenthMl = (int32_t)((flowCounter.ticks() - flowCounterInfusionStart) * FlowMeterVolumePerTickMilliliters * 10.0);
 
     if (scaleConnected)
     {
@@ -659,12 +661,26 @@ void updateUi()
     else
     {
       lv_label_set_text_fmt(infuseWeightUnitLabel, "ml");
-      lv_label_set_text_fmt(infuseWeightLabel, "%.1f", volume);
+      if (volumeTenthMl < 1000)
+      {
+        lv_label_set_text_fmt(infuseWeightLabel, "%d.%d", volumeTenthMl / 10, volumeTenthMl % 10);
+      }
+      else
+      {
+        lv_label_set_text_fmt(infuseWeightLabel, "%d", volumeTenthMl / 10);
+      }
       lv_label_set_text_fmt(infuseFlowUnitLabel, "ml/s");
       lv_label_set_text_fmt(infuseFlowLabel, "%.1f", flowVolumeAvg.get());
     }
 
-    lv_label_set_text_fmt(infuseVolumeLabel, (hotWater && coldFlush) ? "\xEF\x8B\x9C %.1f" : "%.1f", volume);
+    if (volumeTenthMl < 100)
+    {
+      lv_label_set_text_fmt(infuseVolumeLabel, "%d.%d", volumeTenthMl / 10, volumeTenthMl % 10);
+    }
+    else
+    {
+      lv_label_set_text_fmt(infuseVolumeLabel, "%d", volumeTenthMl / 10);
+    }
   }
   else
   {
@@ -1019,14 +1035,19 @@ void updateUi()
   unsigned long currentScaleValueTimestamp;
   bleServer.scaleValue(currentScaleValue, currentScaleValueTimestamp);
   scaleConnected = millis() - currentScaleValueTimestamp < 1000;
-  if (scaleConnected && currentScaleValue != scaleValue)
+  if (scaleConnected)
   {
-    flowWeightAvg.push((currentScaleValue - scaleValue) / 10.0 / ((currentScaleValueTimestamp - scaleValueTimestamp) / 1000.0));
+    if (millis() - lastScaleValueTimestamp >= 500)
+    {
+      flowWeightAvg.push(((currentScaleValue - lastScaleValue) / 10.0) / ((currentScaleValueTimestamp - lastScaleValueTimestamp) / 1000.0));
+      lastScaleValue = currentScaleValue;
+      lastScaleValueTimestamp = currentScaleValueTimestamp;
+    }
     scaleValue = currentScaleValue;
-    scaleValueTimestamp = currentScaleValueTimestamp;
   }
   else
   {
+    scaleValue = 0;
     flowWeightAvg.push(0.0);
   }
 
