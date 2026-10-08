@@ -1049,13 +1049,9 @@ void updateUi()
   {
     if (millis() - lastScaleValueTimestamp >= 500)
     {
-      int32_t delta = currentScaleValue - lastScaleValue;
-      if (delta > 0) 
-      {
-        flowWeightAvg.push((delta / 10.0) / ((currentScaleValueTimestamp - lastScaleValueTimestamp) / 1000.0));
-        lastScaleValue = currentScaleValue;
-        lastScaleValueTimestamp = currentScaleValueTimestamp;
-      }
+      flowWeightAvg.push(((currentScaleValue - lastScaleValue) / 10.0) / ((currentScaleValueTimestamp - lastScaleValueTimestamp) / 1000.0));
+      lastScaleValue = currentScaleValue;
+      lastScaleValueTimestamp = currentScaleValueTimestamp;
     }
     scaleValue = currentScaleValue;
   }
