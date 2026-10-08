@@ -12,7 +12,7 @@
 const uint8_t dh8706DongleMacAddress[] = { 0xF8, 0x8F, 0xC8, 0x9E, 0xF2, 0xD0 };
 const uint8_t dh8706CalibrationSequence[] = { 0x7F, 0xFF, 0xFF, 0xFF, 0xFF };
 
-BleServer::BleServer() : server(nullptr), scaleValueCharacteristic(nullptr), _scaleValue(INT32_MAX), lastScaleValueTimestamp(0)
+BleServer::BleServer() : server(nullptr), scaleValueCharacteristic(nullptr), _scaleValue(0), lastScaleValueTimestamp(0)
 {
 }
 
@@ -80,8 +80,6 @@ void BleServer::onWrite(NimBLECharacteristic* characteristic, NimBLEConnInfo& co
         }
     }
 }
-
-    extern "C" int ble_att_clt_tx_mtu(uint16_t conn_handle, uint16_t mtu);
 
 void BleServer::onConnect(NimBLEServer* server, NimBLEConnInfo& connInfo) 
 {

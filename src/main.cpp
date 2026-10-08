@@ -828,7 +828,9 @@ void updateUi()
       preinfusionPressureReached = false;
       preinfusionPassed = false;
       infusionStopped = false;
-   }
+      flowWeightAvg.clear();
+      flowVolumeAvg.clear();
+    }
     else
     {
       heatingRelay.setCycles(0);
@@ -1056,11 +1058,6 @@ void updateUi()
       }
     }
     scaleValue = currentScaleValue;
-  }
-  else
-  {
-    scaleValue = 0;
-    flowWeightAvg.push(0.0);
   }
 
   cycle++;
