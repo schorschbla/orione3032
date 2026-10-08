@@ -34,10 +34,15 @@ void LeadingEdgeDimmer::end()
     }
 }
 
-void LeadingEdgeDimmer::setPowerLevel(double level)
+void LeadingEdgeDimmer::setPowerLevel(float powerLevel)
 {
-    level = constrain(level, 0.0, 1.0);
-    leadingEdgeLengthMicros = acos(2.0 * level - 1.0) / PI * CycleLengthMicros;
+    this->_powerLevel = constrain(powerLevel, 0.0f, 1.0f);
+    leadingEdgeLengthMicros = acos(2.0 * this->_powerLevel - 1.0) / PI * CycleLengthMicros;
+}
+
+float LeadingEdgeDimmer::powerLevel() const
+{
+    return _powerLevel;
 }
 
 void LeadingEdgeDimmer::onZeroCross()

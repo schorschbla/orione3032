@@ -23,9 +23,14 @@ unsigned int count;
     bool addListener(AcZeroCrossListener *listener);
     bool removeListener(AcZeroCrossListener *listener);
 
+    uint32_t phaseLengthUs() const;
+
 private:
     uint8_t pin;
-    uint32_t lastZeroCrossTime;
+    uint32_t lastZeroCrossTimeUs;
+    uint32_t phaseLengthsUs[32];
+    uint8_t phaseLengthIndex;
+    uint32_t phaseLengthAverageUs;
     AcZeroCrossListener* listeners[MAX_ZEROCROSS_LISTENERS];
 
     IRAM_ATTR void onInterrupt();

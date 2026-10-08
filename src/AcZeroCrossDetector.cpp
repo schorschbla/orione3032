@@ -1,8 +1,8 @@
 # include "AcZeroCrossDetector.h"
 
-const uint32_t ZeroCrossThresholdUs = 9000;
+const uint32_t ZeroCrossThresholdUs = 8000;
 
-AcZeroCrossDetector::AcZeroCrossDetector(uint8_t pin) : pin(pin), lastZeroCrossTime(0), listeners({0}), count(0)
+AcZeroCrossDetector::AcZeroCrossDetector(uint8_t pin) : pin(pin), lastZeroCrossTimeUs(0), listeners({0}), count(0), phaseLengthsUs({0}), phaseLengthIndex(0), phaseLengthAverageUs(0)
 {
 }
 
@@ -60,7 +60,8 @@ bool AcZeroCrossDetector::removeListener(AcZeroCrossListener *listener)
 void AcZeroCrossDetector::onInterrupt()
 {
     uint32_t time = micros();
-	if (lastZeroCrossTime == 0 || time - lastZeroCrossTime > ZeroCrossThresholdUs)
+    uint32_t delta = time - lastZeroCrossTimeUs;
+	if (delta > ZeroCrossThresholdUs || lastZeroCrossTimeUs == 0)
     {
         count++;
         for (int i = 0; i < sizeof(listeners) / sizeof(AcZeroCrossListener*); ++i)
@@ -70,8 +71,26 @@ void AcZeroCrossDetector::onInterrupt()
                 listeners[i]->onZeroCross();
             }
         }
-        lastZeroCrossTime = time;
+        lastZeroCrossTimeUs = time;
+        phaseLengthsUs[phaseLengthIndex] = delta;
+        phaseLengthIndex = (phaseLengthIndex + 1) % (sizeof(phaseLengthsUs) / sizeof(uint32_t));
     }
+}
+
+uint32_t AcZeroCrossDetector::phaseLengthUs() const
+{
+    uint32_t sum = 0;
+    uint32_t count = 0;
+    for (int i = 0; i < sizeof(phaseLengthsUs) / sizeof(uint32_t); ++i)
+    {
+        uint32_t sample = phaseLengthsUs[i];
+        if (sample < lastZeroCrossTimeUs * 2)
+        {
+            sum += sample;
+            count++;
+        }
+    }
+    return count > 0 ? sum / count : 0;
 }
 
 void AcZeroCrossDetector::onInterruptArg(void *arg)

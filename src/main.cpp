@@ -147,7 +147,7 @@ void initStandbyUi()
   lv_obj_center(standbyTemperatureArc);
 
   standbyTemperatureLabel = lv_label_create(standbyScreen);
-  lv_obj_set_style_text_font(standbyTemperatureLabel, &lv_font_my_montserrat_40, 0);
+  lv_obj_set_style_text_font(standbyTemperatureLabel, &lv_font_my_40, 0);
   lv_obj_set_width(standbyTemperatureLabel, 150);
   lv_obj_set_style_text_align(standbyTemperatureLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(standbyTemperatureLabel, LV_ALIGN_CENTER, 0, -56);
@@ -171,32 +171,32 @@ void initStandbyUi()
   lv_obj_center(waterLevelArc);
 
   brewingUnitTemperatureLabel = lv_label_create(standbyScreen);
-  lv_obj_set_style_text_font(brewingUnitTemperatureLabel, &lv_font_my_montserrat_32, 0);
+  lv_obj_set_style_text_font(brewingUnitTemperatureLabel, &lv_font_my_32, 0);
   lv_obj_set_width(brewingUnitTemperatureLabel, 160);
   lv_obj_set_style_text_align(brewingUnitTemperatureLabel, LV_TEXT_ALIGN_LEFT, 0);
   lv_obj_align(brewingUnitTemperatureLabel, LV_ALIGN_CENTER, 0, -23);
 
   waterLevelSymbol = lv_label_create(standbyScreen);
-  lv_obj_set_style_text_font(waterLevelSymbol, &lv_font_my_montserrat_20, 0);
+  lv_obj_set_style_text_font(waterLevelSymbol, &lv_font_my_20, 0);
   lv_obj_set_width(waterLevelSymbol, 160);
   lv_obj_set_style_text_align(waterLevelSymbol, LV_TEXT_ALIGN_RIGHT, 0);
   lv_obj_align(waterLevelSymbol, LV_ALIGN_CENTER, 0, -23);
   lv_label_set_text_fmt(waterLevelSymbol, "\xEF\x81\x83");
 
   waterLevelLabel = lv_label_create(standbyScreen);
-  lv_obj_set_style_text_font(waterLevelLabel, &lv_font_my_montserrat_32, 0);
+  lv_obj_set_style_text_font(waterLevelLabel, &lv_font_my_32, 0);
   lv_obj_set_width(waterLevelLabel, 126);
   lv_obj_set_style_text_align(waterLevelLabel, LV_TEXT_ALIGN_RIGHT, 0);
   lv_obj_align(waterLevelLabel, LV_ALIGN_CENTER, 0, -23);
 
   scaleValueLabel = lv_label_create(standbyScreen);
-  lv_obj_set_style_text_font(scaleValueLabel, &lv_font_my_montserrat_68, 0);
+  lv_obj_set_style_text_font(scaleValueLabel, &lv_font_my_68, 0);
   lv_obj_set_width(scaleValueLabel, 230);
   lv_obj_set_style_text_align(scaleValueLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(scaleValueLabel, LV_ALIGN_CENTER, 0, 32);
 
   scaleUnitLabel = lv_label_create(standbyScreen);
-  lv_obj_set_style_text_font(scaleUnitLabel, &lv_font_my_montserrat_20, 0);
+  lv_obj_set_style_text_font(scaleUnitLabel, &lv_font_my_20, 0);
   lv_obj_set_width(scaleUnitLabel, 230);
   lv_obj_set_style_text_align(scaleUnitLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(scaleUnitLabel, LV_ALIGN_CENTER, 0, 70);
@@ -218,14 +218,14 @@ void initInfuseUi()
   lv_obj_center(infusePressureArc);
 
   infusePressureLabel = lv_label_create(infuseScreen);
-  lv_obj_set_style_text_font(infusePressureLabel, &lv_font_my_montserrat_48, 0);
+  lv_obj_set_style_text_font(infusePressureLabel, &lv_font_my_48, 0);
   lv_obj_set_width(infusePressureLabel, 144);
   lv_obj_set_style_text_align(infusePressureLabel, LV_TEXT_ALIGN_RIGHT, 0);
   lv_obj_align(infusePressureLabel, LV_ALIGN_TOP_LEFT, 0, 26);
 
 
   lv_obj_t *barLabel = lv_label_create(infuseScreen);
-  lv_obj_set_style_text_font(barLabel, &lv_font_my_montserrat_20, 0);
+  lv_obj_set_style_text_font(barLabel, &lv_font_my_20, 0);
   lv_obj_set_width(barLabel, 50);
   lv_obj_set_style_text_align(barLabel, LV_TEXT_ALIGN_LEFT, 0);
   lv_obj_align(barLabel, LV_ALIGN_TOP_LEFT, 146, 49);
@@ -233,20 +233,20 @@ void initInfuseUi()
 
 
   infuseTemperatureLabel = lv_label_create(infuseScreen);
-  lv_obj_set_style_text_font(infuseTemperatureLabel, &lv_font_my_montserrat_32, 0);
+  lv_obj_set_style_text_font(infuseTemperatureLabel, &lv_font_my_32, 0);
   lv_obj_set_width(infuseTemperatureLabel, 114);
   lv_obj_set_style_text_align(infuseTemperatureLabel, LV_TEXT_ALIGN_RIGHT, 0);
   lv_obj_align(infuseTemperatureLabel, LV_ALIGN_TOP_LEFT, 0, 70);
 
 
   infuseVolumeLabel = lv_label_create(infuseScreen);
-  lv_obj_set_style_text_font(infuseVolumeLabel, &lv_font_my_montserrat_32, 0);
+  lv_obj_set_style_text_font(infuseVolumeLabel, &lv_font_my_32, 0);
   lv_obj_set_width(infuseVolumeLabel, 70);
   lv_obj_set_style_text_align(infuseVolumeLabel, LV_TEXT_ALIGN_RIGHT, 0);
   lv_obj_align(infuseVolumeLabel, LV_ALIGN_TOP_LEFT, 110, 70);
 
   lv_obj_t *mlLabel = lv_label_create(infuseScreen);
-  lv_obj_set_style_text_font(mlLabel, &lv_font_my_montserrat_20, 0);
+  lv_obj_set_style_text_font(mlLabel, &lv_font_my_20, 0);
   lv_obj_set_width(mlLabel, 50);
   lv_obj_set_style_text_align(mlLabel, LV_TEXT_ALIGN_LEFT, 0);
   lv_obj_align(mlLabel, LV_ALIGN_TOP_LEFT, 182, 80);
@@ -254,26 +254,26 @@ void initInfuseUi()
 
 
   infuseWeightLabel = lv_label_create(infuseScreen);
-  lv_obj_set_style_text_font(infuseWeightLabel, &lv_font_my_montserrat_68, 0);
+  lv_obj_set_style_text_font(infuseWeightLabel, &lv_font_my_68, 0);
   lv_obj_set_width(infuseWeightLabel, 230);
   lv_obj_set_style_text_align(infuseWeightLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(infuseWeightLabel, LV_ALIGN_CENTER, 0, 54);
 
   infuseWeightUnitLabel = lv_label_create(infuseScreen);
-  lv_obj_set_style_text_font(infuseWeightUnitLabel, &lv_font_my_montserrat_20, 0);
+  lv_obj_set_style_text_font(infuseWeightUnitLabel, &lv_font_my_20, 0);
   lv_obj_set_width(infuseWeightUnitLabel, 230);
   lv_obj_set_style_text_align(infuseWeightUnitLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(infuseWeightUnitLabel, LV_ALIGN_CENTER, 0, 92);
 
   infuseFlowLabel = lv_label_create(infuseScreen);
-  lv_obj_set_style_text_font(infuseFlowLabel, &lv_font_my_montserrat_48, 0);
+  lv_obj_set_style_text_font(infuseFlowLabel, &lv_font_my_48, 0);
   lv_obj_set_width(infuseFlowLabel, 144);
   lv_obj_set_style_text_align(infuseFlowLabel, LV_TEXT_ALIGN_RIGHT, 0);
   lv_obj_align(infuseFlowLabel, LV_ALIGN_TOP_LEFT, 0, 97);
 
 
   infuseFlowUnitLabel = lv_label_create(infuseScreen);
-  lv_obj_set_style_text_font(infuseFlowUnitLabel, &lv_font_my_montserrat_20, 0);
+  lv_obj_set_style_text_font(infuseFlowUnitLabel, &lv_font_my_20, 0);
   lv_obj_set_width(infuseFlowUnitLabel, 50);
   lv_obj_set_style_text_align(infuseFlowUnitLabel, LV_TEXT_ALIGN_LEFT, 0);
   lv_obj_align(infuseFlowUnitLabel, LV_ALIGN_TOP_LEFT, 146, 120);
@@ -285,21 +285,21 @@ void initPairingUi(char *btDeviceName)
   pairingWaitScreen = lv_obj_create(NULL);
 
   lv_obj_t *symbolLabel = lv_label_create(pairingWaitScreen);
-  lv_obj_set_style_text_font(symbolLabel, &lv_font_my_montserrat_48, 0);
+  lv_obj_set_style_text_font(symbolLabel, &lv_font_my_48, 0);
   lv_obj_set_width(symbolLabel, 230);
   lv_obj_set_style_text_align(symbolLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(symbolLabel, LV_ALIGN_CENTER, 0, -80);
   lv_label_set_text_fmt(symbolLabel, LV_SYMBOL_BLUETOOTH);
 
   lv_obj_t *pairingLabel = lv_label_create(pairingWaitScreen);
-  lv_obj_set_style_text_font(pairingLabel, &lv_font_my_montserrat_32, 0);
+  lv_obj_set_style_text_font(pairingLabel, &lv_font_my_32, 0);
   lv_obj_set_width(pairingLabel, 230);
   lv_obj_set_style_text_align(pairingLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(pairingLabel, LV_ALIGN_CENTER, 0, -18);
   lv_label_set_text_fmt(pairingLabel, "Kopplung\naktiv");
 
   lv_obj_t *deviceNameLabel = lv_label_create(pairingWaitScreen);
-  lv_obj_set_style_text_font(deviceNameLabel, &lv_font_my_montserrat_20, 0);
+  lv_obj_set_style_text_font(deviceNameLabel, &lv_font_my_20, 0);
   lv_obj_set_width(deviceNameLabel, 190);
   lv_obj_set_style_text_align(deviceNameLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(deviceNameLabel, LV_ALIGN_CENTER, 0, 50);
@@ -308,20 +308,20 @@ void initPairingUi(char *btDeviceName)
   pairingPinScreen = lv_obj_create(NULL);
 
   lv_obj_t *pinLabel = lv_label_create(pairingPinScreen);
-  lv_obj_set_style_text_font(pinLabel, &lv_font_my_montserrat_36, 0);
+  lv_obj_set_style_text_font(pinLabel, &lv_font_my_36, 0);
   lv_obj_set_width(pinLabel, 230);
   lv_obj_set_style_text_align(pinLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(pinLabel, LV_ALIGN_CENTER, 0, -85);
   lv_label_set_text_fmt(pinLabel, "PIN:");
 
   pairingPinLabel = lv_label_create(pairingPinScreen);
-  lv_obj_set_style_text_font(pairingPinLabel, &lv_font_my_montserrat_48, 0);
+  lv_obj_set_style_text_font(pairingPinLabel, &lv_font_my_48, 0);
   lv_obj_set_width(pairingPinLabel, 230);
   lv_obj_set_style_text_align(pairingPinLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(pairingPinLabel, LV_ALIGN_CENTER, 0, -45);
 
   confirmHintLabel = lv_label_create(pairingPinScreen);
-  lv_obj_set_style_text_font(confirmHintLabel, &lv_font_my_montserrat_20, 0);
+  lv_obj_set_style_text_font(confirmHintLabel, &lv_font_my_20, 0);
   lv_obj_set_width(confirmHintLabel, 230);
   lv_obj_set_style_text_align(confirmHintLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(confirmHintLabel, LV_ALIGN_CENTER, 0, 40);
@@ -330,21 +330,21 @@ void initPairingUi(char *btDeviceName)
   pairingSuccessScreen = lv_obj_create(NULL);
 
   symbolLabel = lv_label_create(pairingSuccessScreen);
-  lv_obj_set_style_text_font(symbolLabel, &lv_font_my_montserrat_48, 0);
+  lv_obj_set_style_text_font(symbolLabel, &lv_font_my_48, 0);
   lv_obj_set_width(symbolLabel, 230);
   lv_obj_set_style_text_align(symbolLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(symbolLabel, LV_ALIGN_CENTER, 0, -65);
   lv_label_set_text_fmt(symbolLabel, LV_SYMBOL_OK);
 
   lv_obj_t *successLabel = lv_label_create(pairingSuccessScreen);
-  lv_obj_set_style_text_font(successLabel, &lv_font_my_montserrat_36, 0);
+  lv_obj_set_style_text_font(successLabel, &lv_font_my_36, 0);
   lv_obj_set_width(successLabel, 230);
   lv_obj_set_style_text_align(successLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(successLabel, LV_ALIGN_CENTER, 0, -5);
   lv_label_set_text_fmt(successLabel, "Kopplung\nerfolgreich");
 
   lv_obj_t *successText = lv_label_create(pairingSuccessScreen);
-  lv_obj_set_style_text_font(successText, &lv_font_my_montserrat_20, 0);
+  lv_obj_set_style_text_font(successText, &lv_font_my_20, 0);
   lv_obj_set_width(successText, 230);
   lv_obj_set_style_text_align(successText, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(successText, LV_ALIGN_CENTER, 0, 65);
@@ -354,14 +354,14 @@ void initPairingUi(char *btDeviceName)
   pairingFailureScreen = lv_obj_create(NULL);
 
   symbolLabel = lv_label_create(pairingFailureScreen);
-  lv_obj_set_style_text_font(symbolLabel, &lv_font_my_montserrat_48, 0);
+  lv_obj_set_style_text_font(symbolLabel, &lv_font_my_48, 0);
   lv_obj_set_width(symbolLabel, 230);
   lv_obj_set_style_text_align(symbolLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(symbolLabel, LV_ALIGN_CENTER, 0, -70);
   lv_label_set_text_fmt(symbolLabel, LV_SYMBOL_WARNING);
 
   lv_obj_t *failureText = lv_label_create(pairingFailureScreen);
-  lv_obj_set_style_text_font(failureText, &lv_font_my_montserrat_20, 0);
+  lv_obj_set_style_text_font(failureText, &lv_font_my_20, 0);
   lv_obj_set_width(failureText, 210);
   lv_obj_set_style_text_align(failureText, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(failureText, LV_ALIGN_CENTER, 0, 20);
@@ -751,9 +751,9 @@ void updateUi()
     {
       lv_obj_clear_flag(scaleUnitLabel, LV_OBJ_FLAG_HIDDEN);
       lv_obj_clear_flag(scaleValueLabel, LV_OBJ_FLAG_HIDDEN);
-      if (scaleValue < 1000)
+      if (abs(scaleValue) < 1000)
       {
-        lv_label_set_text_fmt(scaleValueLabel, "%d.%d", scaleValue / 10, scaleValue % 10);
+        lv_label_set_text_fmt(scaleValueLabel, "%d.%d", scaleValue / 10, abs(scaleValue % 10));
       }
       else
       {
@@ -1055,6 +1055,11 @@ void updateUi()
     }
     scaleValue = currentScaleValue;
   }
+
+if (cycle % 25 == 0)
+{
+  Serial.printf("pahse length %d\n", zeroCrossDetector.phaseLengthUs());
+}
 
   cycle++;
   

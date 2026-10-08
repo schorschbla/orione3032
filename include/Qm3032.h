@@ -1,50 +1,52 @@
 #pragma once
 
-#include "Gradient.h"
+#include "HardwareConfig.h"
 #include "Gc9a01Display.h"
 #include "SolidStateRelay.h"
 #include "LeadingEdgeDimmer.h"
 #include "Xdb401PressureSensor.h"
 #include "Mlx90614TemperatureSensor.h"
+#include "BleServer.h"
+#include "PulseCounter.h"
+#include "Actuators.h"
+#include "SensorData.h"
 
-typedef struct
-{
-    uint8_t Gc9a01PinMosi;
-    uint8_t Gc9a01PinSclk;
-    uint8_t Gc9a01PinCs;
-    uint8_t Gc9a01PinDc;
-    uint8_t Gc9a01PinRst;
-    uint8_t Gc9a01PinBl;
-    uint32_t Gc9a01Frequency;
-
-    uint8_t AcPinZeroCross;
-    uint8_t AcPinPump;
-    uint8_t AcPinValve;
-    uint8_t AcPinHeating;
-
-    uint8_t Max31865PinMiso;
-    uint8_t Max31865PinMosi;
-    uint8_t Max31865PinSclk;
-    uint8_t Max31865PinCs;
-
-    uint8_t PinSwitchInfuse;
-    uint8_t PinSwitchSteam;
-
-    uint8_t PinFlowMeterCold;
-    uint8_t PinBuzzer;
-} Qm3033HardwareConfig;
-
-class Qm3032
+class Qm3032 : private Actuators, private SensorData
 {
 public:
-    Qm3032(const Qm3033HardwareConfig &hardwareConfig);
+    Qm3032(const HardwareConfig &hardwareConfig);
+
+    void setup();
+    void loop();
 
 private:
-    const Qm3033HardwareConfig &hardwareConfig;
+    HardwareConfig hardwareConfig;
     Gc9a01Display display;
-    IRAM_ATTR AcZeroCrossDetector zeroCrossDetector;
-    IRAM_ATTR SolidStateRelay heatingRelay;
-    IRAM_ATTR LeadingEdgeDimmer pumpDimmer;
+    AcZeroCrossDetector zeroCrossDetector;
+    SolidStateRelay heatingRelay;
+    LeadingEdgeDimmer pumpDimmer;
     Xdb401PressureSensor pressureSensor;
     Mlx90614TemperatureSensor brewingUnitTemperatureSensor;
+    PulseCounter flowMeter;
+    BleServer bleServer;
+
+    uint32_t cycle;
+    
+    bool _valveClosed;
+    float _pressureBar;
+    float _boilerTemperatureCelsius;
+    float _brewingUnitTemperatureCelsius;
+
+    void setHeatingPowerCycles(uint32_t cycles) override;
+    uint32_t heatingPowerCycleLengthUs() const override;
+    void setValveClosed(bool closed) override;
+    bool valveClosed() const override;
+    void setPumpPowerLevel(float fract) override;
+    float pumpPowerLevel() const override;
+
+    void flowVolumeMl(float &volumeMs, uint32_t &timestamp) const override;
+    float pressureBar() const override;
+    float boilerTemperatureCelsius() const override;
+    float brewingUnitTemperatureCelsius() const override;
+    void weightGramm(float &weightGramms, uint32_t &timestamp) const override;
 };
