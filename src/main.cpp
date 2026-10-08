@@ -1044,7 +1044,7 @@ void updateUi()
   int32_t currentScaleValue;
   unsigned long currentScaleValueTimestamp;
   bleServer.scaleValue(currentScaleValue, currentScaleValueTimestamp);
-  scaleConnected = millis() - currentScaleValueTimestamp < 1000;
+  scaleConnected = currentScaleValueTimestamp != 0 && millis() - currentScaleValueTimestamp < 1000;
   if (scaleConnected)
   {
     if (millis() - lastScaleValueTimestamp >= 500)
