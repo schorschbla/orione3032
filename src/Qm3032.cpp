@@ -125,6 +125,15 @@ void Qm3032::loop()
         delay(CycleLengthMs - elapsedMs);
     }
 
+    uint32_t phaseDurationUs;
+    unsigned long lastZeroCrossTimeUs;
+    zeroCrossDetector.phaseDurationUs(phaseDurationUs, lastZeroCrossTimeUs);
+    timestamp = lastZeroCrossTimeUs / 1000;
+    if (timestamp != _acHalfWaveLengthUs.timestampMs())
+    {
+        _acHalfWaveLengthUs = MeasuredValue<uint32_t>(phaseDurationUs, timestamp);
+    }
+
     cycle++;
 }
 
@@ -160,11 +169,6 @@ void Qm3032::uiTask(void *context)
 void Qm3032::setHeatingPowerCycles(uint32_t cycles)
 {
     heatingRelay.setCycles(cycles);
-}
-
-uint32_t Qm3032::heatingPowerCycleLengthUs()
-{
-    return zeroCrossDetector.phaseLengthUs();
 }
 
 void Qm3032::setValveClosed(bool closed)
@@ -214,4 +218,9 @@ const MeasuredValue<double> &Qm3032::brewingUnitTemperatureCelsius()
 const MeasuredValue<double> &Qm3032::weightGramm()
 {
     return _weightGramm;
+}
+
+const MeasuredValue<uint32_t> &Qm3032::acHalfWaveLengthUs() 
+{
+    return _acHalfWaveLengthUs;
 }

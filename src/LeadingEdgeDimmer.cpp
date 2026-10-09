@@ -4,7 +4,7 @@ const uint32_t MicrosPerSecond = 1000000;
 const uint32_t CycleLengthMicros = 10000;
 
 LeadingEdgeDimmer::LeadingEdgeDimmer(uint8_t pin, AcZeroCrossDetector &zeroCrossDetector) : 
-    pin(pin), zeroCrossDetector(zeroCrossDetector), leadingEdgeLengthMicros(CycleLengthMicros), timer(nullptr)
+    pin(pin), zeroCrossDetector(zeroCrossDetector), leadingEdgeDurationUs(CycleLengthMicros), timer(nullptr)
 {
 }
 
@@ -37,7 +37,7 @@ void LeadingEdgeDimmer::end()
 void LeadingEdgeDimmer::setPowerLevel(float powerLevel)
 {
     this->_powerLevel = constrain(powerLevel, 0.0f, 1.0f);
-    leadingEdgeLengthMicros = acos(2.0 * this->_powerLevel - 1.0) / PI * CycleLengthMicros;
+    leadingEdgeDurationUs = acos(2.0 * this->_powerLevel - 1.0) / PI * zeroCrossDetector.phaseDurationUs();
 }
 
 float LeadingEdgeDimmer::powerLevel() const
@@ -47,13 +47,13 @@ float LeadingEdgeDimmer::powerLevel() const
 
 void LeadingEdgeDimmer::onZeroCross()
 {
-    if (leadingEdgeLengthMicros != 0)
+    if (leadingEdgeDurationUs != 0)
     {
         digitalWrite(pin, LOW);
-        if (leadingEdgeLengthMicros < CycleLengthMicros)
+        if (leadingEdgeDurationUs < CycleLengthMicros)
         {
             timerRestart(timer);
-            timerAlarm(timer, leadingEdgeLengthMicros, false, 0);
+            timerAlarm(timer, leadingEdgeDurationUs, false, 0);
         }
     }
     else

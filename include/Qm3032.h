@@ -54,6 +54,7 @@ private:
     MeasuredValue<double> _brewingUnitTemperatureCelsius;
     MeasuredValue<double> _weightGramm;
     MeasuredValue<double> _flowVolumeMl;
+    MeasuredValue<uint32_t> _acHalfWaveLengthUs;
 
     TaskHandle_t uiTaskHandle;
     void uiThread();
@@ -61,8 +62,7 @@ private:
 
     void initUi();
 
-    void setHeatingPowerCycles(uint32_t cycles) override;
-    uint32_t heatingPowerCycleLengthUs() override;
+    void setHeatingPowerAcHalfWaveCount(uint32_t cycles) override;
     void setValveClosed(bool closed) override;
     bool valveClosed() override;
     void setPumpPowerLevel(float fract) override;
@@ -73,4 +73,5 @@ private:
     const MeasuredValue<double> &boilerTemperatureCelsius() override;
     const MeasuredValue<double> &brewingUnitTemperatureCelsius() override;
     const MeasuredValue<double> &weightGramm() override;
+    const MeasuredValue<uint32_t> &acHalfWaveLengthUs() override;
 };

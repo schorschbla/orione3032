@@ -47,4 +47,5 @@ public:
     virtual const MeasuredValue<double> &boilerTemperatureCelsius() = 0;
     virtual const MeasuredValue<double> &brewingUnitTemperatureCelsius() = 0;
     virtual const MeasuredValue<double> &weightGramm() = 0;
+    virtual const MeasuredValue<uint32_t> &acHalfWaveLengthUs() = 0;
 };

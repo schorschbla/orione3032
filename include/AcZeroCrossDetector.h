@@ -16,21 +16,21 @@ class AcZeroCrossDetector
 public:
     AcZeroCrossDetector(uint8_t pin);
     ~AcZeroCrossDetector();
-unsigned int count;
+
     void begin();
     void end();
 
     bool addListener(AcZeroCrossListener *listener);
     bool removeListener(AcZeroCrossListener *listener);
 
-    uint32_t phaseLengthUs() const;
+    uint32_t phaseDurationUs() const;
+    void phaseDurationUs(uint32_t &phaseDurationUs, unsigned long lastZeroCrossTimeUs) const;
 
 private:
     uint8_t pin;
-    uint32_t lastZeroCrossTimeUs;
-    uint32_t phaseLengthsUs[32];
-    uint8_t phaseLengthIndex;
-    uint32_t phaseLengthAverageUs;
+    uint32_t count;
+    unsigned long zeroCrossTimestampUs;
+    uint32_t _phaseDurationUs;
     AcZeroCrossListener* listeners[MAX_ZEROCROSS_LISTENERS];
 
     IRAM_ATTR void onInterrupt();

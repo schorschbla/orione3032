@@ -16,7 +16,7 @@ public:
 
 private:
     AcZeroCrossDetector &zeroCrossDetector;
-    uint32_t leadingEdgeLengthMicros;
+    uint32_t leadingEdgeDurationUs;
     uint8_t pin;
     hw_timer_t *timer;
     float _powerLevel;
