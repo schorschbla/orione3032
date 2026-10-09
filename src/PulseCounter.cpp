@@ -32,10 +32,12 @@ void PulseCounter::end()
 
 void PulseCounter::ticks(uint32_t &ticks, uint32_t &timestamp) const
 {
-    do {
+    do 
+    {
         timestamp = this->timestamp;
         ticks = this->_ticks;
-    } while (timestamp != this->timestamp);
+    }
+    while (timestamp != this->timestamp);
 }
 
 void PulseCounter::reset()

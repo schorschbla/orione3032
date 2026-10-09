@@ -11,6 +11,8 @@ struct HardwareConfig
     uint8_t Gc9a01PinRst;
     uint8_t Gc9a01PinBl;
     uint32_t Gc9a01Frequency;
+    uint32_t Gc9a01BlPwmFrequency;
+    uint8_t Gc9a01Rotation;
 
     uint8_t AcPinZeroCross;
     uint8_t AcPinPump;
@@ -21,6 +23,9 @@ struct HardwareConfig
     uint8_t Max31865PinMosi;
     uint8_t Max31865PinSclk;
     uint8_t Max31865PinCs;
+    uint32_t Max31856SampleTimeMs;
+    double Max31865ReferenceTemperatureCelsius;
+    double Max31865ReferenceResistorValueOhms;
 
     uint8_t PinSwitchInfuse;
     uint8_t PinSwitchSteam;

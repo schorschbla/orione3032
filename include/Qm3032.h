@@ -1,5 +1,10 @@
 #pragma once
 
+#include <Arduino.h>
+
+#include <Adafruit_MAX31865.h>
+#include <Adafruit_VL53L0X.h>
+
 #include "HardwareConfig.h"
 #include "Gc9a01Display.h"
 #include "SolidStateRelay.h"
@@ -10,6 +15,9 @@
 #include "PulseCounter.h"
 #include "Actuators.h"
 #include "SensorData.h"
+
+#include "StandbyMode.h"
+
 
 class Qm3032 : private Actuators, private SensorData
 {
@@ -26,27 +34,43 @@ private:
     SolidStateRelay heatingRelay;
     LeadingEdgeDimmer pumpDimmer;
     Xdb401PressureSensor pressureSensor;
-    Mlx90614TemperatureSensor brewingUnitTemperatureSensor;
+    Mlx90614TemperatureSensor brewingUnitThermometer;
+    SPIClass hspi;
+    Adafruit_MAX31865 boilerThermometer;
+    Adafruit_VL53L0X waterLevelSensor;
     PulseCounter flowMeter;
     BleServer bleServer;
+    bool waterLevelSensorPresent;
+    Mode &currentMode;
+    Ui &currentUi;
+
+    StandbyMode standbyMode;
 
     uint32_t cycle;
-    
     bool _valveClosed;
-    float _pressureBar;
-    float _boilerTemperatureCelsius;
-    float _brewingUnitTemperatureCelsius;
+
+    MeasuredValue<double> _pressureBar;
+    MeasuredValue<double> _boilerTemperatureCelsius;
+    MeasuredValue<double> _brewingUnitTemperatureCelsius;
+    MeasuredValue<double> _weightGramm;
+    MeasuredValue<double> _flowVolumeMl;
+
+    TaskHandle_t uiTaskHandle;
+    void uiThread();
+    static void uiTask(void *context);
+
+    void initUi();
 
     void setHeatingPowerCycles(uint32_t cycles) override;
-    uint32_t heatingPowerCycleLengthUs() const override;
+    uint32_t heatingPowerCycleLengthUs() override;
     void setValveClosed(bool closed) override;
-    bool valveClosed() const override;
+    bool valveClosed() override;
     void setPumpPowerLevel(float fract) override;
-    float pumpPowerLevel() const override;
+    float pumpPowerLevel() override;
 
-    void flowVolumeMl(float &volumeMs, uint32_t &timestamp) const override;
-    float pressureBar() const override;
-    float boilerTemperatureCelsius() const override;
-    float brewingUnitTemperatureCelsius() const override;
-    void weightGramm(float &weightGramms, uint32_t &timestamp) const override;
+    const MeasuredValue<double> &flowVolumeMl() override;
+    const MeasuredValue<double> &pressureBar() override;
+    const MeasuredValue<double> &boilerTemperatureCelsius() override;
+    const MeasuredValue<double> &brewingUnitTemperatureCelsius() override;
+    const MeasuredValue<double> &weightGramm() override;
 };
