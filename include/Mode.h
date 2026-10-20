@@ -7,6 +7,6 @@
 class Mode : public Ui
 {
 public:
-    virtual void loop(SensorData &sensorData, Actuators &actuators, uint32_t cycle) = 0;
-    virtual void updateUi() = 0;
+    virtual void begin(uint32_t cycleDurationMs) = 0;
+    virtual void loop(SensorData &sensorData, Actuators &actuators, uint32_t cycle, bool updateUi) = 0;
 };

@@ -45,7 +45,7 @@ float LeadingEdgeDimmer::powerLevel() const
     return _powerLevel;
 }
 
-void LeadingEdgeDimmer::onZeroCross()
+void LeadingEdgeDimmer::onZeroCross(uint16_t delayUs)
 {
     if (leadingEdgeDurationUs != 0)
     {
@@ -53,7 +53,7 @@ void LeadingEdgeDimmer::onZeroCross()
         if (leadingEdgeDurationUs < CycleLengthMicros)
         {
             timerRestart(timer);
-            timerAlarm(timer, leadingEdgeDurationUs, false, 0);
+            timerAlarm(timer, leadingEdgeDurationUs + delayUs, false, 0);
         }
     }
     else

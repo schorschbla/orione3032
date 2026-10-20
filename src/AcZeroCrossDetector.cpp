@@ -2,7 +2,7 @@
 
 const uint32_t ZeroCrossThresholdUs = 8000;
 
-AcZeroCrossDetector::AcZeroCrossDetector(uint8_t pin) : pin(pin), zeroCrossTimestampUs(0), _phaseDurationUs(0), listeners({0}), count(0)
+AcZeroCrossDetector::AcZeroCrossDetector(uint8_t pin) : pin(pin), zeroCrossTimestampUs(0), _phaseDurationUs(0), listeners({0}), count(0), zeroCrossDurationsUs({0}), zeroCrossDurationsPos(0), zeroCrossDurationsMedianUs(0)
 {
 }
 
@@ -59,34 +59,25 @@ bool AcZeroCrossDetector::removeListener(AcZeroCrossListener *listener)
 
 #define SWAP(x, y) do { if ((x) > (y)) { uint16_t tmp = (x); (x) = (y); (y) = tmp; } } while(0)
 
-inline uint16_t moving_median_5(uint16_t new_sample) {
-    static uint16_t buffer[5] = {0};
-    static uint8_t idx = 0;
-
-    buffer[idx] = new_sample;
-    idx = (idx + 1);
-    if (idx >= 5) idx = 0;
-
+inline uint16_t fastMedianAverage(uint16_t buffer[5]) {
     uint16_t a = buffer[0];
     uint16_t b = buffer[1];
     uint16_t c = buffer[2];
     uint16_t d = buffer[3];
     uint16_t e = buffer[4];
 
-    // 3. 6-Comparison Sorting Network for the Median of 5
-    SWAP(a, b); // Pair 1
-    SWAP(c, d); // Pair 2
+    SWAP(a, b);
+    SWAP(c, d);
     
-    SWAP(a, c); // Bring smaller pair-leader to 'a'
-    SWAP(b, d); // Bring larger pair-follower to 'd'
+    SWAP(a, c);
+    SWAP(b, d);
     
-    SWAP(a, e); // 'a' is now guaranteed to be the absolute minimum
-    SWAP(b, c); // Order the middle elements
+    SWAP(a, e);
+    SWAP(b, c);
     
-    SWAP(c, e); // 'e' is now guaranteed to be the absolute maximum
-    SWAP(b, c); // Final comparison to find the true middle element
+    SWAP(c, e);
+    SWAP(b, c);
     
-    // The median is now sitting perfectly in 'c'
     return c;
 }
 
@@ -96,16 +87,23 @@ void AcZeroCrossDetector::onInterrupt()
     uint32_t delta = time - zeroCrossTimestampUs;
 	if (delta > ZeroCrossThresholdUs || zeroCrossTimestampUs == 0)
     {
+        uint16_t delayUs = zeroCrossDurationsMedianUs / 2;
         count++;
         for (int i = 0; i < sizeof(listeners) / sizeof(AcZeroCrossListener*); ++i)
         {
             if (listeners[i] != nullptr)
             {
-                listeners[i]->onZeroCross();
+                listeners[i]->onZeroCross(delayUs);
             }
         }
         _phaseDurationUs = delta;
         zeroCrossTimestampUs = time;
+    }
+    else
+    {
+        zeroCrossDurationsUs[zeroCrossDurationsPos] = delta;
+        zeroCrossDurationsPos = (zeroCrossDurationsPos + 1) % 5;
+        zeroCrossDurationsMedianUs = fastMedianAverage(zeroCrossDurationsUs);
     }
 }
 

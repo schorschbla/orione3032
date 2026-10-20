@@ -6,6 +6,7 @@
 #include <Adafruit_VL53L0X.h>
 
 #include "HardwareConfig.h"
+#include "Config.h"
 #include "Gc9a01Display.h"
 #include "SolidStateRelay.h"
 #include "LeadingEdgeDimmer.h"
@@ -22,12 +23,13 @@
 class Qm3032 : private Actuators, private SensorData
 {
 public:
-    Qm3032(const HardwareConfig &hardwareConfig);
+    Qm3032(const HardwareConfig &hardwareConfig, const ConfigValues &configDefaults);
 
     void setup();
     void loop();
 
 private:
+    Config config;
     HardwareConfig hardwareConfig;
     Gc9a01Display display;
     AcZeroCrossDetector zeroCrossDetector;
@@ -45,33 +47,32 @@ private:
     Ui &currentUi;
 
     StandbyMode standbyMode;
+    Mode *modes[1] = { &standbyMode };
 
     uint32_t cycle;
     bool _valveClosed;
 
-    MeasuredValue<double> _pressureBar;
-    MeasuredValue<double> _boilerTemperatureCelsius;
-    MeasuredValue<double> _brewingUnitTemperatureCelsius;
-    MeasuredValue<double> _weightGramm;
-    MeasuredValue<double> _flowVolumeMl;
-    MeasuredValue<uint32_t> _acHalfWaveLengthUs;
+    SensorValue<double, 25> _pressureBar;
+    SensorValue<double, 20> _boilerTemperatureCelsius;
+    SensorValue<double, 20> _brewingUnitTemperatureCelsius;
+    SensorValue<double, 8> _weightGramm;
+    SensorValue<double, 8> _flowVolumeMl;
+    SensorValue<uint32_t, 9> _acHalfWaveLengthUs;
 
     TaskHandle_t uiTaskHandle;
     void uiThread();
     static void uiTask(void *context);
 
-    void initUi();
-
-    void setHeatingPowerAcHalfWaveCount(uint32_t cycles) override;
+    void setHeatingPowerAcHalfWaveCount(uint32_t cycles, bool reset = true) override;
     void setValveClosed(bool closed) override;
     bool valveClosed() override;
     void setPumpPowerLevel(float fract) override;
     float pumpPowerLevel() override;
 
-    const MeasuredValue<double> &flowVolumeMl() override;
-    const MeasuredValue<double> &pressureBar() override;
-    const MeasuredValue<double> &boilerTemperatureCelsius() override;
-    const MeasuredValue<double> &brewingUnitTemperatureCelsius() override;
-    const MeasuredValue<double> &weightGramm() override;
-    const MeasuredValue<uint32_t> &acHalfWaveLengthUs() override;
-};
+    const SensorValue<double, 8> &flowVolumeMl() override;
+    const SensorValue<double, 25> &pressureBar() override;
+    const SensorValue<double, 20> &boilerTemperatureCelsius() override;
+    const SensorValue<double, 20> &brewingUnitTemperatureCelsius() override;
+    const SensorValue<double, 8> &weightGramm() override;
+    const SensorValue<uint32_t, 9> &acHalfWaveLengthUs() override;
+};   

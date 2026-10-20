@@ -8,7 +8,7 @@
 class AcZeroCrossListener
 {
 public:
-    virtual IRAM_ATTR void onZeroCross() = 0;
+    virtual IRAM_ATTR void onZeroCross(uint16_t delayUs) = 0;
 };
 
 class AcZeroCrossDetector
@@ -32,6 +32,9 @@ private:
     unsigned long zeroCrossTimestampUs;
     uint32_t _phaseDurationUs;
     AcZeroCrossListener* listeners[MAX_ZEROCROSS_LISTENERS];
+    uint16_t zeroCrossDurationsUs[5];
+    uint8_t zeroCrossDurationsPos;
+    uint16_t zeroCrossDurationsMedianUs;
 
     IRAM_ATTR void onInterrupt();
     IRAM_ATTR static void onInterruptArg(void *arg);

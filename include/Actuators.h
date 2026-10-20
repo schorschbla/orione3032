@@ -5,7 +5,7 @@
 class Actuators
 {
 public:
-    virtual void setHeatingPowerAcHalfWaveCount(uint32_t count) = 0;
+    virtual void setHeatingPowerAcHalfWaveCount(uint32_t count, bool reset = true) = 0;
 
     virtual void setValveClosed(bool closed) = 0;
     virtual bool valveClosed() = 0;

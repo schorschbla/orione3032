@@ -21,7 +21,7 @@ private:
     hw_timer_t *timer;
     float _powerLevel;
 
-    IRAM_ATTR virtual void onZeroCross();
+    IRAM_ATTR virtual void onZeroCross(uint16_t delayUs);
     IRAM_ATTR void onTimerInterrupt();
     IRAM_ATTR static void onTimerInterruptArg(void *arg);
 };

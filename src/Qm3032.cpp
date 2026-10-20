@@ -4,30 +4,32 @@
 
 const uint32_t CycleLengthMs = 40;
 
-Qm3032::Qm3032(const HardwareConfig &config)
-    : hardwareConfig(config),
-      display(config.Gc9a01Frequency,
-              config.Gc9a01PinSclk,
-              config.Gc9a01PinMosi,
-              config.Gc9a01PinDc,
-              config.Gc9a01PinCs,
-              config.Gc9a01PinRst),
-      zeroCrossDetector(config.AcPinZeroCross),
-      heatingRelay(config.AcPinHeating, zeroCrossDetector),
-      pumpDimmer(config.AcPinPump, zeroCrossDetector),
-      pressureSensor(Wire, config.Xdb401MaxBar),
+Qm3032::Qm3032(const HardwareConfig &hardwareConfig, const ConfigValues &configDefaults)
+    : hardwareConfig(hardwareConfig),
+      config(configDefaults),
+      display(hardwareConfig.Gc9a01Frequency,
+              hardwareConfig.Gc9a01PinSclk,
+              hardwareConfig.Gc9a01PinMosi,
+              hardwareConfig.Gc9a01PinDc,
+              hardwareConfig.Gc9a01PinCs,
+              hardwareConfig.Gc9a01PinRst),
+      zeroCrossDetector(hardwareConfig.AcPinZeroCross),
+      heatingRelay(hardwareConfig.AcPinHeating, zeroCrossDetector),
+      pumpDimmer(hardwareConfig.AcPinPump, zeroCrossDetector),
+      pressureSensor(Wire, hardwareConfig.Xdb401MaxBar),
       brewingUnitThermometer(Wire),
       hspi(HSPI),
-      boilerThermometer(config.Max31865PinCs, &hspi),
+      boilerThermometer(hardwareConfig.Max31865PinCs, &hspi),
       waterLevelSensor(Adafruit_VL53L0X()),
-      flowMeter(config.PinFlowMeter),
+      flowMeter(hardwareConfig.PinFlowMeter),
       bleServer(),
       cycle(0),
       uiTaskHandle(nullptr),
       waterLevelSensorPresent(false),
       _valveClosed(false),
       currentMode(standbyMode),
-      currentUi(currentMode)
+      currentUi(currentMode),
+      standbyMode(config)
 {
 }
 
@@ -71,67 +73,76 @@ void Qm3032::setup()
     flowMeter.begin();
 
     bleServer.start("SchorschCoff");
+
+    for (int i = 0; i < sizeof(modes) / sizeof(Mode *); ++i)
+    {
+        modes[i]->begin(CycleLengthMs);
+    }
 }
 
 void Qm3032::loop()
 {
     uint32_t windowStartTimeMs = millis();
 
-    if (eTaskGetState(uiTaskHandle) == eTaskState::eSuspended)
+    bool updateUi = eTaskGetState(uiTaskHandle) == eTaskState::eSuspended;
+
+    currentMode.loop(*this, *this, cycle, updateUi);
+
+    if (updateUi)
     {
-        currentMode.updateUi();
         currentUi = currentMode;
         vTaskResume(uiTaskHandle);
     }
 
-    if (windowStartTimeMs >= _boilerTemperatureCelsius.timestampMs() + hardwareConfig.Max31856SampleTimeMs)
+    if (windowStartTimeMs >= _boilerTemperatureCelsius.sample().timestampMs() + hardwareConfig.Max31856SampleTimeMs)
     {
         uint16_t sampleValue = boilerThermometer.readRTDCont();
-        _boilerTemperatureCelsius = boilerThermometer.calculateTemperature(sampleValue,
+        double boilerTemperatureCelsiusSample = boilerThermometer.calculateTemperature(sampleValue,
             hardwareConfig.Max31865ReferenceTemperatureCelsius,
             hardwareConfig.Max31865ReferenceResistorValueOhms);
+        _boilerTemperatureCelsius.addSample(SensorSample(boilerTemperatureCelsiusSample));
 
         double brewingUnitTemperatureSample;
         if (brewingUnitThermometer.readValue(Mlx90614TemperatureSensor::Register::Obj1, brewingUnitTemperatureSample) == 0)
         {
-            _brewingUnitTemperatureCelsius = brewingUnitTemperatureSample;
+            _brewingUnitTemperatureCelsius.addSample(SensorSample(brewingUnitTemperatureSample));
         }
     }
 
-    double pressureBar;
-    if (pressureSensor.readValue(pressureBar) == 0)
+    double pressureSample;
+    if (pressureSensor.readValue(pressureSample) == 0)
     {
-        _pressureBar = pressureBar;
+        _pressureBar.addSample(SensorSample(pressureSample));
     }
 
-    uint32_t flowMeterTicks;
+    uint32_t flowMeterTicksSample;
     uint32_t timestamp;
-    flowMeter.ticks(flowMeterTicks, timestamp);
-    if (timestamp != _flowVolumeMl.timestampMs())
+    flowMeter.ticks(flowMeterTicksSample, timestamp);
+    if (timestamp != _flowVolumeMl.sample().timestampMs())
     {
-        _flowVolumeMl = MeasuredValue<double>(flowMeterTicks * hardwareConfig.FlowMeterVolumePerTickMl, timestamp);
+        _flowVolumeMl.addSample(SensorSample<double>(flowMeterTicksSample * hardwareConfig.FlowMeterVolumePerTickMl, timestamp));
     }
 
-    int32_t valueTenthGramms;
-    bleServer.scaleValue(valueTenthGramms, timestamp);
-    if (timestamp != _weightGramm.timestampMs())
+    int32_t valueTenthGrammsSample;
+    bleServer.scaleValue(valueTenthGrammsSample, timestamp);
+    if (timestamp != _weightGramm.sample().timestampMs())
     {
-        _weightGramm = MeasuredValue<double>(valueTenthGramms / 10.0, timestamp);
+        _weightGramm.addSample(SensorSample<double>(valueTenthGrammsSample / 10.0, timestamp));
+    }
+
+    uint32_t phaseDurationUsSample;
+    unsigned long lastZeroCrossTimeUs;
+    zeroCrossDetector.phaseDurationUs(phaseDurationUsSample, lastZeroCrossTimeUs);
+    timestamp = lastZeroCrossTimeUs / 1000;
+    if (timestamp != _acHalfWaveLengthUs.sample().timestampMs())
+    {
+        _acHalfWaveLengthUs.addSample(SensorSample<uint32_t>(phaseDurationUsSample, timestamp));
     }
 
     uint32_t elapsedMs = millis() - windowStartTimeMs;
     if (elapsedMs < CycleLengthMs)
     {
         delay(CycleLengthMs - elapsedMs);
-    }
-
-    uint32_t phaseDurationUs;
-    unsigned long lastZeroCrossTimeUs;
-    zeroCrossDetector.phaseDurationUs(phaseDurationUs, lastZeroCrossTimeUs);
-    timestamp = lastZeroCrossTimeUs / 1000;
-    if (timestamp != _acHalfWaveLengthUs.timestampMs())
-    {
-        _acHalfWaveLengthUs = MeasuredValue<uint32_t>(phaseDurationUs, timestamp);
     }
 
     cycle++;
@@ -145,7 +156,10 @@ void Qm3032::uiThread()
     lv_init();
     lv_disp_drv_register(&display.lvglDriver());
 
-    initUi();
+    for (int i = 0; i < sizeof(modes) / sizeof(Mode *); ++i)
+    {
+        modes[i]->initUi();
+    }
 
     for (;;)
     {
@@ -155,20 +169,15 @@ void Qm3032::uiThread()
     }
 }
 
-void Qm3032::initUi()
-{
-    standbyMode.initUi();
-}
-
 void Qm3032::uiTask(void *context)
 {
     reinterpret_cast<Qm3032*>(context)->uiThread();
     vTaskDelete(nullptr);
 }
 
-void Qm3032::setHeatingPowerCycles(uint32_t cycles)
+void Qm3032::setHeatingPowerAcHalfWaveCount(uint32_t cycles, bool reset)
 {
-    heatingRelay.setCycles(cycles);
+    heatingRelay.setCycles(cycles, reset);
 }
 
 void Qm3032::setValveClosed(bool closed)
@@ -195,32 +204,32 @@ float Qm3032::pumpPowerLevel()
     return pumpDimmer.powerLevel();
 }
 
-const MeasuredValue<double> &Qm3032::flowVolumeMl()
+const SensorValue<double, 8> &Qm3032::flowVolumeMl()
 {
     return _flowVolumeMl;
 }
 
-const MeasuredValue<double> &Qm3032::pressureBar()
+const SensorValue<double, 25> &Qm3032::pressureBar()
 {
     return _pressureBar;
 }
 
-const MeasuredValue<double> &Qm3032::boilerTemperatureCelsius()
+const SensorValue<double, 20> &Qm3032::boilerTemperatureCelsius()
 {
     return _boilerTemperatureCelsius;
 }
 
-const MeasuredValue<double> &Qm3032::brewingUnitTemperatureCelsius()
+const SensorValue<double, 20> &Qm3032::brewingUnitTemperatureCelsius()
 {
     return _brewingUnitTemperatureCelsius;
 }
 
-const MeasuredValue<double> &Qm3032::weightGramm()
+const SensorValue<double, 8> &Qm3032::weightGramm()
 {
     return _weightGramm;
 }
 
-const MeasuredValue<uint32_t> &Qm3032::acHalfWaveLengthUs() 
+const SensorValue<uint32_t, 9> &Qm3032::acHalfWaveLengthUs() 
 {
     return _acHalfWaveLengthUs;
 }

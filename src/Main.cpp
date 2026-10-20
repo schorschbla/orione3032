@@ -37,7 +37,15 @@ static struct HardwareConfig hardwareConfig =
     .FlowMeterVolumePerTickMl = 0.23
 };
 
-Qm3032 qm3032(hardwareConfig);
+static struct ConfigValues configDefaults = 
+{
+    .standbyTemperatureDegCelsius = 92,
+    .standbyPidP = 2.6,
+    .standbyPidI = 0.05,
+    .standbyPidD = 30.0
+};
+
+Qm3032 qm3032(hardwareConfig, configDefaults);
 
 void setup()
 {

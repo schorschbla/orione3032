@@ -1,8 +1,14 @@
 #include "StandbyMode.h"
 #include "Fonts.h"
 
-StandbyMode::StandbyMode()
-		: _screen(nullptr),
+StandbyMode::StandbyMode(const StandbyModeConfig &config)
+		: config(config),
+            temperatureIs(0.0),
+            temperatureSet(0.0),
+            pidOut(0.0),
+            temperaturePid(&temperatureIs, &pidOut, &temperatureSet, 0, 0, 0, DIRECT),
+            temperaturePidIntervalCycles(0),
+            _screen(nullptr),
 			temperatureArc(nullptr),
 			temperatureLabel(nullptr),
 			brewingUnitTemperatureArc(nullptr),
@@ -13,15 +19,42 @@ StandbyMode::StandbyMode()
 			scaleValueLabel(nullptr),
 			scaleUnitLabel(nullptr)
 {
+}
+
+void StandbyMode::begin(uint32_t cycleDurationMs)
+{
+    this->cycleDurationMs = cycleDurationMs;
+    temperaturePidIntervalCycles = 1000 / this->cycleDurationMs;
+
+    temperaturePid.SetOutputLimits(0, 1.0);
+    temperaturePid.SetSampleTime(temperaturePidIntervalCycles * this->cycleDurationMs);
+    temperaturePid.SetMode(AUTOMATIC);
+    temperaturePid.SetTunings(config.standbyPidP(), config.standbyPidI(), config.standbyPidD());
 
 }
 
-void StandbyMode::loop(SensorData &, Actuators &, uint32_t)
+void StandbyMode::loop(SensorData &sensorData, Actuators &actuators, uint32_t cycle, bool updateUi)
 {
-}
+    if (cycle % temperaturePidIntervalCycles == 0)
+    {
+        uint32_t heatingCycles;
+        temperatureIs = sensorData.boilerTemperatureCelsius().median(500);
+        if (temperaturePid.Compute())
+        {
+            uint32_t acHalfWaveLengthMs = sensorData.acHalfWaveLengthUs().median() / 1000;
+            heatingCycles = pidOut * (temperaturePidIntervalCycles * cycleDurationMs / acHalfWaveLengthMs);
+        }
+        else
+        {
+            heatingCycles = 0;
+        }
+        actuators.setHeatingPowerAcHalfWaveCount(heatingCycles);
+    }
 
-void StandbyMode::updateUi()
-{
+    if (updateUi)
+    {
+
+    }
 }
 
 void StandbyMode::initUi()
