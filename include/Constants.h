@@ -24,7 +24,7 @@ const uint8_t PinInfuseSwitch = 34;
 const uint8_t PinSteamSwitch = 23;
 const uint8_t PinHotwaterSwitch = 39;
 
-const uint8_t PinFlowMeter = 19;
+const uint8_t PinFlowMeter = 15;
 
 const uint8_t PinBuzzer = 5;
 
